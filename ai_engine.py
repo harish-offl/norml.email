@@ -14,7 +14,10 @@ OLLAMA_REQUEST_TIMEOUT_SECONDS = float(os.getenv("OLLAMA_REQUEST_TIMEOUT_SECONDS
 OLLAMA_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "30m")
 OLLAMA_NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "280"))
 OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.7"))
-MIN_BODY_WORDS = int(os.getenv("MIN_COLD_EMAIL_WORDS", "130"))
+MIN_BODY_WORDS = int(os.getenv("MIN_COLD_EMAIL_WORDS", "95"))
+MAX_BODY_WORDS = int(os.getenv("MAX_COLD_EMAIL_WORDS", "150"))
+DEFAULT_SENDER_NAME = os.getenv("SENDER_NAME", os.getenv("EMAIL_ADDRESS", "Your Name").split("@")[0] or "Your Name")
+DEFAULT_COMPANY_NAME = os.getenv("AGENCY_NAME", "Your Company Name")
 
 
 def _strip_ansi(text: str) -> str:
@@ -37,28 +40,30 @@ def _build_prompt(lead: dict) -> str:
     company = _lead_value(lead, "company", "your business")
     solution = _lead_value(lead, "niche", "digital growth")
     industry = _lead_value(lead, "industry", "your industry")
+    sender_name = DEFAULT_SENDER_NAME
+    agency_name = DEFAULT_COMPANY_NAME
 
     return (
-        "Write a detailed B2B cold outreach email with real market-context language.\n"
+        "Write one professional cold email using this exact structure.\n"
         f"Recipient Name: {name}\n"
-        f"Company: {company}\n"
+        f"Client Company: {company}\n"
         f"Solution We Provide: {solution}\n"
         f"Industry: {industry}\n\n"
-        "Hard requirements:\n"
+        "Structure requirements:\n"
         "1) First line must be exactly in this format: Subject: <text>\n"
-        "2) Then write the body with 5-7 short paragraphs and greeting.\n"
-        "3) Include these ideas in order:\n"
-        "   - personalized opener about their company/industry\n"
-        "   - how the market is behaving now (competition, buyer behavior, demand shifts)\n"
-        "   - common revenue/growth bottleneck for this segment\n"
-        "   - how our solution solves it with two concrete outcomes\n"
-        "   - soft CTA for a 15-minute call\n"
-        "4) Keep total body length between 140 and 220 words.\n"
-        "5) Avoid generic filler. Do not use placeholders like [Name].\n"
-        "6) Output plain email text only, no markdown or bullet lists.\n"
-        "7) Use ASCII only and do not use emoji.\n"
-        f"8) Must include the exact phrase '{solution}' once in subject and at least once in body.\n"
-        "9) Do not propose any other primary service."
+        "2) Body line 1: Hi <Client Name>,\n"
+        "3) Body line 2: Dear <Client Name>,\n"
+        "4) Respectful opening recognizing their experience in the industry.\n"
+        "5) Problem context about current competition and changing buyer behavior.\n"
+        f"6) Solution intro using {agency_name} and the exact service phrase '{solution}'.\n"
+        "7) Add 2-3 measurable benefits as dash bullets.\n"
+        "8) Add CTA inviting a 15-minute call.\n"
+        f"9) Closing exactly as:\nBest regards,\n{sender_name}\n"
+        "10) Add one optional PS line about urgency/opportunity.\n"
+        "11) Keep body under 150 words (target 120-145 words).\n"
+        "12) Output plain text only, no markdown tables, no emoji.\n"
+        f"13) Must include the exact phrase '{solution}' at least once in subject and once in body.\n"
+        "14) Do not suggest any different primary service."
     )
 
 
@@ -139,37 +144,59 @@ def _normalize_email(raw_text: str, lead: dict) -> str:
         return _detailed_fallback(lead)
 
     body = _ascii_safe("\n".join(body_lines).strip())
-    if not body.lower().startswith("hi "):
-        body = f"Hi {name},\n\n{body}"
-
-    # If model returns very short content, fall back to a detailed template.
-    body_word_count = len(body.split())
-    if body_word_count < MIN_BODY_WORDS:
+    body_word_count = _word_count(body)
+    if body_word_count < MIN_BODY_WORDS or body_word_count > MAX_BODY_WORDS:
         return _detailed_fallback(lead)
+
     final_text = _ascii_safe(f"{subject}\n{body}")
     if not _solution_alignment_ok(final_text, solution):
+        return _detailed_fallback(lead)
+    if not _structure_alignment_ok(final_text, name, industry):
         return _detailed_fallback(lead)
 
     return final_text
 
 
 def _detailed_fallback(lead: dict) -> str:
-    """Detailed fallback used when Ollama generation fails or is too short."""
+    """Template fallback used when Ollama output is invalid."""
     name = _lead_value(lead, "name", "there")
     company = _lead_value(lead, "company", "your business")
     solution = _lead_value(lead, "niche", "growth")
     industry = _lead_value(lead, "industry", "your industry")
+    sender_name = DEFAULT_SENDER_NAME
+    agency_name = DEFAULT_COMPANY_NAME
 
-    return _ascii_safe(
-        f"Subject: Scaling {industry} growth with {solution}\n"
+    fallback = (
+        f"Subject: {solution} strategy to grow {industry} lead flow\n"
         f"Hi {name},\n\n"
-        f"I came across {company} and wanted to reach out because teams in {industry} are seeing major shifts in how buyers discover and compare vendors.\n\n"
-        f"Right now, the market is rewarding businesses that show clear expertise early in the buyer journey. Competitors that publish stronger proof, capture higher-intent traffic, and follow up faster are winning disproportionate share.\n\n"
-        f"For many {industry} businesses, the bottleneck is not effort, but conversion quality: campaigns generate activity, but not enough qualified opportunities that move to revenue.\n\n"
-        f"Our {solution} approach focuses on fixing that gap with tighter messaging, better targeting, and funnel improvements. Typical outcomes include higher lead-to-meeting rates and more predictable pipeline from the same marketing spend.\n\n"
-        f"If useful, I can share a short 15-minute teardown tailored to {company} and outline where the quickest gains are likely.\n\n"
-        "Best regards,"
+        f"Dear {name},\n"
+        f"As a professional in the {industry} sector, you know how important it is to stay ahead of competitors and maintain steady growth.\n\n"
+        f"With competition increasing and buyer behavior shifting online, many {industry} businesses find it difficult to generate consistent qualified leads and maintain visibility.\n\n"
+        f"At {agency_name}, we help {industry} businesses improve online growth through {solution} tailored to their market and customer intent.\n\n"
+        "- Increased qualified website traffic and online visibility\n"
+        "- Improved lead generation from digital channels\n"
+        "- Stronger brand authority in the local market\n\n"
+        f"Would you be open to a quick 15-minute call to explore how {solution} can help {company} attract more clients?\n\n"
+        f"Best regards,\n{sender_name}\n\n"
+        f"P.S. Many businesses in {industry} are already using {solution} to capture more demand. This is a strong time to stay ahead."
     )
+    body = "\n".join(fallback.splitlines()[1:])
+    if _word_count(body) > MAX_BODY_WORDS:
+        trimmed_ps = (
+            f"Subject: {solution} strategy to grow {industry} lead flow\n"
+            f"Hi {name},\n\n"
+            f"Dear {name},\n"
+            f"As a professional in the {industry} sector, you know steady growth depends on staying visible while competitors move fast.\n\n"
+            f"Many {industry} businesses now struggle with rising competition, shifting buyer behavior, and inconsistent digital lead flow.\n\n"
+            f"At {agency_name}, we help businesses like {company} grow through {solution} with focused execution.\n\n"
+            "- Increased qualified traffic and visibility\n"
+            "- Better lead generation from digital channels\n"
+            "- Stronger brand authority in your local market\n\n"
+            f"Would you be open to a quick 15-minute call to explore how {solution} can help {company} grow?\n\n"
+            f"Best regards,\n{sender_name}"
+        )
+        return _ascii_safe(trimmed_ps)
+    return _ascii_safe(fallback)
 
 
 def _solution_alignment_ok(email_text: str, solution: str) -> bool:
@@ -184,6 +211,33 @@ def _solution_alignment_ok(email_text: str, solution: str) -> bool:
     subject = lines[0].lower()
     body = "\n".join(lines[1:]).lower()
     return expected in subject and expected in body
+
+
+def _word_count(text: str) -> int:
+    return len(re.findall(r"\b[\w'-]+\b", text or ""))
+
+
+def _structure_alignment_ok(email_text: str, name: str, industry: str) -> bool:
+    lines = [line.strip().lower() for line in email_text.splitlines() if line.strip()]
+    if len(lines) < 6:
+        return False
+
+    lowered = "\n".join(lines)
+    expected_hi = f"hi {name.lower()}".strip()
+    expected_dear = f"dear {name.lower()}".strip()
+    if expected_hi not in lowered:
+        return False
+    if expected_dear not in lowered:
+        return False
+    if "best regards" not in lowered:
+        return False
+    if "15-minute call" not in lowered:
+        return False
+    if industry.lower() not in lowered:
+        return False
+
+    bullet_lines = [line for line in lines if line.startswith("- ")]
+    return len(bullet_lines) >= 2
 
 
 def _log_result(result: str, error: str) -> None:

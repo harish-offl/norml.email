@@ -5,3 +5,4 @@ __pycache__/
 .pytest_cache/
 .tmp_pytest/
 pytest-cache-files-*/
+ai_generation.log
