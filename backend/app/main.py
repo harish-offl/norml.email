@@ -7,7 +7,7 @@ import os
 import re
 import threading
 
-from django.http import FileResponse, JsonResponse
+from django.http import FileResponse, JsonResponse, HttpResponse
 from django.urls import path
 from django.db import transaction
 from rest_framework import serializers, viewsets
@@ -17,6 +17,7 @@ from rest_framework.response import Response
 
 from backend.campaign_runner import run_campaign
 from backend.config import get_missing_smtp_settings
+from backend.env_utils import BASE_DIR
 from .campaign_status import (
     campaign_is_running,
     fail_campaign,
@@ -240,10 +241,15 @@ class LeadViewSet(viewsets.ModelViewSet):
 
 def frontend_view(request):
     """Serve the simple frontend page."""
-    frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend", "index.html")
-    if os.path.exists(frontend_path):
+    frontend_path = BASE_DIR / "frontend" / "index.html"
+    if frontend_path.exists():
         return FileResponse(open(frontend_path, "rb"), content_type="text/html")
     return JsonResponse({"error": "Frontend not found"}, status=404)
+
+
+def favicon_view(request):
+    """Silence favicon requests in dev if no icon is present."""
+    return HttpResponse(status=204)
 
 
 urlpatterns = [
@@ -252,4 +258,5 @@ urlpatterns = [
     path("api/campaign/start/", LeadViewSet.as_view({"post": "start_campaign"})),
     path("api/campaign/status/", LeadViewSet.as_view({"get": "campaign_status"})),
     path("", frontend_view),
+    path("favicon.ico", favicon_view),
 ]
