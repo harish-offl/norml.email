@@ -2,10 +2,11 @@ import os
 import sys
 import types
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "app.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.app.settings")
 
 import django
-from campaign_runner import _load_leads, _process_chunk
+
+from backend.campaign_runner import _load_leads, _process_chunk
 
 
 django.setup()
@@ -53,7 +54,7 @@ def test_load_leads_returns_only_unsent_records(monkeypatch):
         Lead=types.SimpleNamespace(objects=types.SimpleNamespace(all=lambda: _QuerySetStub(records)))
     )
 
-    monkeypatch.setitem(sys.modules, "app.models", fake_module)
+    monkeypatch.setitem(sys.modules, "backend.app.models", fake_module)
 
     leads = _load_leads(use_csv_fallback=False, only_unsent=True)
 
@@ -75,22 +76,22 @@ def test_process_chunk_marks_delivery_progress(monkeypatch):
         def send(self, to_email, subject, body):
             sent_messages.append((to_email, subject, body))
 
-    monkeypatch.setattr("campaign_runner.SMTPSender", lambda: _DummySender())
-    monkeypatch.setattr("campaign_runner.generate_cold_email", lambda row: "Subject: Hello\nBody")
-    monkeypatch.setattr("campaign_runner._mark_lead_sent", lambda email: state_changes.append(("sent", email)))
+    monkeypatch.setattr("backend.campaign_runner.SMTPSender", lambda: _DummySender())
+    monkeypatch.setattr("backend.campaign_runner.generate_cold_email", lambda row: "Subject: Hello\nBody")
+    monkeypatch.setattr("backend.campaign_runner._mark_lead_sent", lambda email: state_changes.append(("sent", email)))
     monkeypatch.setattr(
-        "campaign_runner._mark_lead_skipped",
+        "backend.campaign_runner._mark_lead_skipped",
         lambda email, reason: state_changes.append(("skipped", email, reason)),
     )
     monkeypatch.setattr(
-        "campaign_runner._mark_lead_failed",
+        "backend.campaign_runner._mark_lead_failed",
         lambda email, error: state_changes.append(("failed", email, error)),
     )
     monkeypatch.setattr(
-        "campaign_runner.record_campaign_progress",
+        "backend.campaign_runner.record_campaign_progress",
         lambda **kwargs: progress_updates.append(kwargs),
     )
-    monkeypatch.setattr("campaign_runner.DELAY_BETWEEN_EMAILS", 0)
+    monkeypatch.setattr("backend.campaign_runner.DELAY_BETWEEN_EMAILS", 0)
 
     result = _process_chunk(
         1,

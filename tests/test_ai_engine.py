@@ -1,14 +1,15 @@
 import subprocess
-from ai_engine import generate_cold_email
+
+from backend.ai_engine import generate_cold_email
 
 
 def test_generate_cold_email_logs(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("ai_engine.requests", None)
-    monkeypatch.setattr("ai_engine.MIN_BODY_WORDS", 50)
-    monkeypatch.setattr("ai_engine.MAX_BODY_WORDS", 250)
-    monkeypatch.setattr("ai_engine.DEFAULT_SENDER_NAME", "Rviswa")
-    monkeypatch.setattr("ai_engine.DEFAULT_COMPANY_NAME", "GrowthPilot")
+    monkeypatch.setattr("backend.ai_engine.requests", None)
+    monkeypatch.setattr("backend.ai_engine.MIN_BODY_WORDS", 50)
+    monkeypatch.setattr("backend.ai_engine.MAX_BODY_WORDS", 250)
+    monkeypatch.setattr("backend.ai_engine.DEFAULT_SENDER_NAME", "Rviswa")
+    monkeypatch.setattr("backend.ai_engine.DEFAULT_COMPANY_NAME", "GrowthPilot")
 
     class Dummy:
         stdout = (
@@ -44,9 +45,9 @@ def test_generate_cold_email_logs(tmp_path, monkeypatch):
 
 def test_generate_cold_email_uses_detailed_fallback_when_ollama_fails(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("ai_engine.requests", None)
-    monkeypatch.setattr("ai_engine.DEFAULT_SENDER_NAME", "Rviswa")
-    monkeypatch.setattr("ai_engine.DEFAULT_COMPANY_NAME", "GrowthPilot")
+    monkeypatch.setattr("backend.ai_engine.requests", None)
+    monkeypatch.setattr("backend.ai_engine.DEFAULT_SENDER_NAME", "Rviswa")
+    monkeypatch.setattr("backend.ai_engine.DEFAULT_COMPANY_NAME", "GrowthPilot")
 
     def fail(*args, **kwargs):
         raise subprocess.CalledProcessError(returncode=1, cmd=args[0], stderr="command failed")

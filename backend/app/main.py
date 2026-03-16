@@ -15,8 +15,8 @@ from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 
-from campaign_runner import run_campaign
-from config import get_missing_smtp_settings
+from backend.campaign_runner import run_campaign
+from backend.config import get_missing_smtp_settings
 from .campaign_status import (
     campaign_is_running,
     fail_campaign,

@@ -3,7 +3,7 @@
 import os
 from pathlib import Path
 
-from env_utils import BASE_DIR, load_project_env
+from backend.env_utils import BASE_DIR, DATA_DIR, load_project_env
 
 load_project_env()
 
@@ -13,7 +13,7 @@ DEBUG = os.getenv("DEBUG", "1").lower() in {"1", "true", "yes", "on"}
 allowed_hosts = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost,0.0.0.0")
 ALLOWED_HOSTS = [host.strip() for host in allowed_hosts.split(",") if host.strip()]
 
-raw_db_name = os.getenv("DATABASE_URL", "leads.db")
+raw_db_name = os.getenv("DATABASE_URL", str(DATA_DIR / "leads.db"))
 if raw_db_name.startswith("sqlite:///"):
     raw_db_name = raw_db_name.replace("sqlite:///", "", 1)
 elif raw_db_name.startswith("sqlite://"):
@@ -35,7 +35,7 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.staticfiles",
     "rest_framework",
-    "app",
+    "backend.app",
 ]
 
 MIDDLEWARE = [
@@ -43,7 +43,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
 ]
 
-ROOT_URLCONF = "app.main"
+ROOT_URLCONF = "backend.app.main"
 USE_TZ = True
 TIME_ZONE = "UTC"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

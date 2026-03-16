@@ -1,7 +1,8 @@
 import os
 import re
 import subprocess
-from env_utils import load_project_env
+
+from backend.env_utils import load_project_env
 
 try:
     import requests  # type: ignore

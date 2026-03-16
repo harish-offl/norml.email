@@ -1,6 +1,6 @@
 import os
 
-from env_utils import load_project_env
+from backend.env_utils import load_project_env
 
 
 load_project_env()

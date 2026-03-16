@@ -8,6 +8,7 @@ __pycache__/
 test_temp_local/
 pytest-cache-files-*/
 ai_generation.log
+data/*.db
 
 # Next.js / Node.js
 norml-app/node_modules/

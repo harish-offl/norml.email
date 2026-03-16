@@ -16,12 +16,21 @@ It is built with Django + Django REST Framework and includes a simple frontend p
 
 ## Architecture
 
-- `frontend/index.html` -> upload/start controls.
-- `app/main.py` -> Django routes and API views.
-- `campaign_runner.py` -> concurrent generation + sending workers.
-- `ai_engine.py` -> Ollama prompt + output validation + fallback template.
-- `smtp_sender.py` -> SMTP sender with retries and connection reuse.
-- `leads.db` -> SQLite lead storage.
+- `frontend/` -> static upload/start dashboard.
+- `backend/app/main.py` -> Django routes and API views.
+- `backend/campaign_runner.py` -> concurrent generation + sending workers.
+- `backend/ai_engine.py` -> Ollama prompt + output validation + fallback template.
+- `backend/smtp_sender.py` -> SMTP sender with retries and connection reuse.
+- `backend/env_utils.py` -> .env loader and project paths.
+- `data/leads.db` -> SQLite lead storage (default path; configure via `DATABASE_URL`).
+
+## Project Layout
+
+- `backend/` — Django app code, campaign engine, SMTP + Ollama logic, env loader, templates.
+- `frontend/` — static React-in-HTML dashboard for upload/start.
+- `tests/` — pytest suites for generation, runner, and campaign start.
+- `data/` — sample lead data (`leads.csv`) and SQLite store (`leads.db` by default).
+- `.env` — environment configuration (root, gitignored).
 
 ## Requirements
 
@@ -44,7 +53,7 @@ SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587
 EMAIL_ADDRESS=your_sender@gmail.com
 EMAIL_PASSWORD=your_app_password
-DATABASE_URL=leads.db
+DATABASE_URL=data/leads.db
 
 OLLAMA_MODEL=llama3.2:1b
 OLLAMA_BASE_URL=http://127.0.0.1:11434
@@ -66,16 +75,16 @@ AGENCY_NAME=Your Company Name
 
 ## Run
 
-Run migrations:
+Run migrations (from the project root):
 
 ```bash
-python main.py --migrate
+python -m backend.main --migrate
 ```
 
 Start server:
 
 ```bash
-python main.py --serve
+python -m backend.main --serve
 ```
 
 Open:
@@ -85,7 +94,7 @@ Open:
 Run campaign from CLI (without API):
 
 ```bash
-python main.py
+python -m backend.main
 ```
 
 ## API Endpoints

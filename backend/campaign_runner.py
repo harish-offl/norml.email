@@ -3,10 +3,11 @@ import csv
 import threading
 import time
 
-from smtp_sender import SMTPSender
-from ai_engine import generate_cold_email
-from config import DELAY_BETWEEN_EMAILS, LEAD_FETCH_CHUNK_SIZE, MAX_CONCURRENT_EMAILS
-from app.campaign_status import finish_campaign, record_campaign_progress
+from backend.smtp_sender import SMTPSender
+from backend.ai_engine import generate_cold_email
+from backend.config import DELAY_BETWEEN_EMAILS, LEAD_FETCH_CHUNK_SIZE, MAX_CONCURRENT_EMAILS
+from backend.app.campaign_status import finish_campaign, record_campaign_progress
+from backend.env_utils import BASE_DIR, DATA_DIR
 
 
 _lead_update_lock = threading.Lock()
@@ -43,7 +44,7 @@ def _deduplicate_leads(leads):
 
 
 def _load_leads(use_csv_fallback=True, only_unsent=True):
-    from app.models import Lead
+    from backend.app.models import Lead
 
     leads = []
     try:
@@ -67,7 +68,10 @@ def _load_leads(use_csv_fallback=True, only_unsent=True):
 
     if not leads and use_csv_fallback:
         try:
-            with open("leads.csv") as file:
+            csv_path = DATA_DIR / "leads.csv"
+            if not csv_path.exists():
+                csv_path = BASE_DIR / "leads.csv"
+            with open(csv_path) as file:
                 reader = csv.DictReader(file)
                 for row in reader:
                     leads.append(row)
@@ -95,7 +99,7 @@ def _update_lead_delivery(email, *, last_status, last_error="", sent=False):
 
     from django.db import close_old_connections
     from django.utils import timezone
-    from app.models import Lead
+    from backend.app.models import Lead
 
     update_fields = {
         "last_status": last_status,

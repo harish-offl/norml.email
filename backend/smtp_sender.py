@@ -1,7 +1,8 @@
 import smtplib
 import time
 from email.mime.text import MIMEText
-from config import (
+
+from backend.config import (
     SMTP_SERVER,
     SMTP_PORT,
     SMTP_MAX_RETRIES,

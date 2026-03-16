@@ -1,16 +1,17 @@
 import argparse
 import os
+
 import django
 from django.conf import settings
 from django.core.management import execute_from_command_line
 
-from campaign_runner import run_campaign
+from backend.campaign_runner import run_campaign
 
 
 def main():
     # Ensure Django is configured
     if not settings.configured:
-        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'app.settings')
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.app.settings")
         django.setup()
 
     parser = argparse.ArgumentParser(description="Email automation utility")
