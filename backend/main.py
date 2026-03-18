@@ -22,7 +22,9 @@ def main():
     if args.migrate:
         execute_from_command_line(['manage.py', 'migrate'])
     elif args.serve:
-        execute_from_command_line(['manage.py', 'runserver', '0.0.0.0:8000'])
+        host = os.getenv('DJANGO_SERVE_HOST', '127.0.0.1')
+        port = os.getenv('DJANGO_SERVE_PORT', '8000')
+        execute_from_command_line(['manage.py', 'runserver', f"{host}:{port}"])
     else:
         run_campaign()
 
