@@ -1,33 +1,40 @@
-"""URL configuration and API views for the email automation project."""
+"""FastAPI application and API routes for the email automation project."""
 
 import csv
 import io
 import logging
-import os
 import re
 import threading
 
-from django.http import FileResponse, JsonResponse, HttpResponse
-from django.urls import path
-from django.db import transaction
-from rest_framework import serializers, viewsets
-from rest_framework.decorators import action
-from rest_framework.parsers import MultiPartParser
-from rest_framework.response import Response
+from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 
-from backend.campaign_runner import run_campaign
-from backend.config import get_missing_smtp_settings
-from backend.env_utils import BASE_DIR
-from .campaign_status import (
+from backend.app.campaign_status import (
     campaign_is_running,
     fail_campaign,
     get_campaign_status_snapshot,
     start_campaign_tracking,
 )
-from .models import Lead
+from backend.app.crud import (
+    bulk_store_leads,
+    count_pending_leads,
+    create_lead,
+    get_lead_by_email,
+    leads_exist,
+    list_leads,
+)
+from backend.app.database import initialize_database
+from backend.app.schemas import LeadCreate
+from backend.campaign_runner import run_campaign
+from backend.config import get_missing_smtp_settings
+from backend.env_utils import BASE_DIR
 
 
 logger = logging.getLogger(__name__)
+
+app = FastAPI(title="AI Email Automation")
+app.mount("/frontend", StaticFiles(directory=str(BASE_DIR / "frontend")), name="frontend")
 
 
 CSV_FIELD_ALIASES = {
@@ -55,21 +62,22 @@ CSV_FIELD_ALIASES = {
 }
 
 
-def _normalize_header(header):
+@app.on_event("startup")
+def on_startup() -> None:
+    initialize_database()
+
+
+def _normalize_header(header: str | None) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (header or "").strip().lower()).strip()
 
 
-def _parse_bool(value, default=True):
+def _parse_bool(value, default: bool = True) -> bool:
     if value is None:
         return default
     return str(value).strip().lower() not in {"0", "false", "no", "off"}
 
 
-def _count_pending_leads():
-    return Lead.objects.filter(sent_at__isnull=True).count()
-
-
-def _canonicalize_row(row):
+def _canonicalize_row(row: dict) -> tuple[dict, list[str]]:
     normalized = {}
     ignored = []
     for key, value in row.items():
@@ -81,182 +89,141 @@ def _canonicalize_row(row):
     return normalized, ignored
 
 
-class LeadSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Lead
-        fields = "__all__"
+def _error(message: str, status_code: int, **extra):
+    payload = {"error": message}
+    payload.update(extra)
+    return JSONResponse(payload, status_code=status_code)
 
 
-class LeadViewSet(viewsets.ModelViewSet):
-    queryset = Lead.objects.all()
-    serializer_class = LeadSerializer
-    parser_classes = (MultiPartParser,)
+@app.get("/api/leads/")
+def list_leads_endpoint():
+    return list_leads()
 
-    @action(detail=False, methods=["post"])
-    def upload(self, request):
-        """Upload a CSV file of leads."""
-        file = request.FILES.get("file")
-        if not file:
-            return Response({"error": "No file provided"}, status=400)
 
+@app.post("/api/leads/", status_code=201)
+def create_lead_endpoint(payload: LeadCreate):
+    existing = get_lead_by_email(payload.email)
+    if existing:
+        return _error("Lead with this email already exists.", 409)
+    return create_lead(payload.model_dump())
+
+
+@app.post("/api/leads/upload/")
+async def upload_leads(
+    file: UploadFile = File(...),
+    replace_existing: str = Form("true"),
+    require_solution: str = Form("true"),
+):
+    if not file:
+        return _error("No file provided", 400)
+
+    try:
+        content = (await file.read()).decode("utf-8")
+        reader = csv.DictReader(io.StringIO(content))
+        replace_existing_value = _parse_bool(replace_existing, default=True)
+        require_solution_value = _parse_bool(require_solution, default=True)
+        parsed_rows = []
+        ignored_columns = set()
+        skipped = 0
+
+        for row in reader:
+            cleaned_row, ignored = _canonicalize_row(row)
+            ignored_columns.update(ignored)
+
+            email = (cleaned_row.get("email") or "").strip().lower()
+            if not email:
+                skipped += 1
+                continue
+
+            cleaned_row["email"] = email
+            if require_solution_value and not cleaned_row.get("niche"):
+                skipped += 1
+                continue
+            parsed_rows.append(cleaned_row)
+
+        if not parsed_rows:
+            return _error(
+                "No valid rows found. Ensure CSV includes Email and Solution/Interest columns.",
+                400,
+                ignored_columns=sorted(ignored_columns),
+                skipped=skipped,
+            )
+
+        created, updated = bulk_store_leads(
+            parsed_rows,
+            replace_existing=replace_existing_value,
+        )
+
+        return {
+            "created": created,
+            "updated": updated,
+            "skipped": skipped,
+            "replace_existing": replace_existing_value,
+            "require_solution": require_solution_value,
+            "ignored_columns": sorted(ignored_columns),
+        }
+    except Exception as exc:
+        return _error(str(exc), 400)
+
+
+@app.post("/api/campaign/start/")
+def start_campaign():
+    if not leads_exist():
+        return _error("No leads found. Upload leads before starting a campaign.", 400)
+
+    if campaign_is_running():
+        return _error(
+            "Campaign is already running.",
+            409,
+            campaign=get_campaign_status_snapshot(),
+        )
+
+    pending_leads = count_pending_leads()
+    if pending_leads == 0:
+        return _error(
+            "All leads have already been emailed. Upload new leads or replace the existing leads to start another campaign.",
+            400,
+        )
+
+    missing_settings = get_missing_smtp_settings()
+    if missing_settings:
+        missing = ", ".join(missing_settings)
+        return _error(
+            (
+                f"Missing SMTP configuration: {missing}. "
+                "Add them to the project .env file or set them in the environment before starting a campaign."
+            ),
+            400,
+        )
+
+    started, campaign = start_campaign_tracking(total=pending_leads)
+    if not started:
+        return _error("Campaign is already running.", 409, campaign=campaign)
+
+    def task():
         try:
-            content = file.read().decode("utf-8")
-            reader = csv.DictReader(io.StringIO(content))
-            replace_existing = _parse_bool(request.data.get("replace_existing"), default=True)
-            require_solution = _parse_bool(request.data.get("require_solution"), default=True)
-            parsed_rows = []
-            ignored_columns = set()
-            skipped = 0
+            run_campaign(use_csv_fallback=False, only_unsent=True)
+        except Exception as exc:
+            fail_campaign(str(exc))
+            logger.exception("Campaign thread crashed")
 
-            for row in reader:
-                cleaned_row, ignored = _canonicalize_row(row)
-                ignored_columns.update(ignored)
-
-                email = (cleaned_row.get("email") or "").strip().lower()
-                if not email:
-                    skipped += 1
-                    continue
-                cleaned_row["email"] = email
-                if require_solution and not cleaned_row.get("niche"):
-                    skipped += 1
-                    continue
-                parsed_rows.append(cleaned_row)
-
-            if not parsed_rows:
-                return Response(
-                    {
-                        "error": "No valid rows found. Ensure CSV includes Email and Solution/Interest columns.",
-                        "ignored_columns": sorted(ignored_columns),
-                        "skipped": skipped,
-                    },
-                    status=400,
-                )
-
-            created = 0
-            updated = 0
-            with transaction.atomic():
-                if replace_existing:
-                    Lead.objects.all().delete()
-
-                for row in parsed_rows:
-                    defaults = {
-                        "name": row.get("name", ""),
-                        "niche": row.get("niche", ""),
-                        "industry": row.get("industry", ""),
-                        "phone": row.get("phone", ""),
-                        "company": row.get("company", ""),
-                    }
-                    lead = Lead.objects.filter(email__iexact=row["email"]).first()
-                    if lead:
-                        for field_name, field_value in defaults.items():
-                            setattr(lead, field_name, field_value)
-                        if lead.sent_at is None:
-                            lead.last_status = "pending"
-                            lead.last_error = ""
-                        lead.email = row["email"]
-                        lead.save()
-                        updated += 1
-                    else:
-                        Lead.objects.create(email=row["email"], **defaults)
-                        created += 1
-
-            return Response(
-                {
-                    "created": created,
-                    "updated": updated,
-                    "skipped": skipped,
-                    "replace_existing": replace_existing,
-                    "require_solution": require_solution,
-                    "ignored_columns": sorted(ignored_columns),
-                }
-            )
-        except Exception as e:
-            return Response({"error": str(e)}, status=400)
-
-    @action(detail=False, methods=["post"])
-    def start_campaign(self, request):
-        """Start a campaign in a background thread."""
-        if not Lead.objects.exists():
-            return Response({"error": "No leads found. Upload leads before starting a campaign."}, status=400)
-
-        if campaign_is_running():
-            return Response(
-                {
-                    "error": "Campaign is already running.",
-                    "campaign": get_campaign_status_snapshot(),
-                },
-                status=409,
-            )
-
-        pending_leads = _count_pending_leads()
-        if pending_leads == 0:
-            return Response(
-                {
-                    "error": (
-                        "All leads have already been emailed. Upload new leads or replace the existing leads "
-                        "to start another campaign."
-                    )
-                },
-                status=400,
-            )
-
-        missing_settings = get_missing_smtp_settings()
-        if missing_settings:
-            missing = ", ".join(missing_settings)
-            return Response(
-                {
-                    "error": (
-                        f"Missing SMTP configuration: {missing}. "
-                        "Add them to the project .env file or set them in the environment before starting a campaign."
-                    )
-                },
-                status=400,
-            )
-
-        started, campaign = start_campaign_tracking(total=pending_leads)
-        if not started:
-            return Response(
-                {
-                    "error": "Campaign is already running.",
-                    "campaign": campaign,
-                },
-                status=409,
-            )
-
-        def task():
-            try:
-                run_campaign(use_csv_fallback=False, only_unsent=True)
-            except Exception as exc:
-                fail_campaign(str(exc))
-                logger.exception("Campaign thread crashed")
-
-        threading.Thread(target=task, daemon=True).start()
-        return Response({"status": "campaign started", "campaign": campaign})
-
-    @action(detail=False, methods=["get"])
-    def campaign_status(self, request):
-        """Return the latest background campaign status."""
-        return Response(get_campaign_status_snapshot())
+    threading.Thread(target=task, daemon=True).start()
+    return {"status": "campaign started", "campaign": campaign}
 
 
-def frontend_view(request):
-    """Serve the simple frontend page."""
+@app.get("/api/campaign/status/")
+def campaign_status():
+    return get_campaign_status_snapshot()
+
+
+@app.get("/", response_class=FileResponse)
+def frontend_view():
     frontend_path = BASE_DIR / "frontend" / "index.html"
     if frontend_path.exists():
-        return FileResponse(open(frontend_path, "rb"), content_type="text/html")
-    return JsonResponse({"error": "Frontend not found"}, status=404)
+        return FileResponse(frontend_path)
+    return _error("Frontend not found", 404)
 
 
-def favicon_view(request):
-    """Silence favicon requests in dev if no icon is present."""
-    return HttpResponse(status=204)
-
-
-urlpatterns = [
-    path("api/leads/", LeadViewSet.as_view({"get": "list", "post": "create"})),
-    path("api/leads/upload/", LeadViewSet.as_view({"post": "upload"})),
-    path("api/campaign/start/", LeadViewSet.as_view({"post": "start_campaign"})),
-    path("api/campaign/status/", LeadViewSet.as_view({"get": "campaign_status"})),
-    path("", frontend_view),
-    path("favicon.ico", favicon_view),
-]
+@app.get("/favicon.ico")
+def favicon_view():
+    return Response(status_code=204)

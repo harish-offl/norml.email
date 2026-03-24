@@ -1,31 +1,26 @@
 import argparse
 import os
 
-import django
-from django.conf import settings
-from django.core.management import execute_from_command_line
-
+from backend.app.database import initialize_database
 from backend.campaign_runner import run_campaign
 
 
 def main():
-    # Ensure Django is configured
-    if not settings.configured:
-        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.app.settings")
-        django.setup()
-
     parser = argparse.ArgumentParser(description="Email automation utility")
-    parser.add_argument("--serve", action="store_true", help="start the Django development server")
-    parser.add_argument("--migrate", action="store_true", help="run database migrations")
+    parser.add_argument("--serve", action="store_true", help="start the FastAPI development server")
+    parser.add_argument("--migrate", action="store_true", help="initialize the SQLite schema")
     args = parser.parse_args()
 
     if args.migrate:
-        execute_from_command_line(['manage.py', 'migrate'])
+        initialize_database()
     elif args.serve:
-        host = os.getenv('DJANGO_SERVE_HOST', '127.0.0.1')
-        port = os.getenv('DJANGO_SERVE_PORT', '8000')
-        execute_from_command_line(['manage.py', 'runserver', f"{host}:{port}"])
+        import uvicorn
+
+        host = os.getenv("FASTAPI_SERVE_HOST", os.getenv("DJANGO_SERVE_HOST", "127.0.0.1"))
+        port = int(os.getenv("FASTAPI_SERVE_PORT", os.getenv("DJANGO_SERVE_PORT", "8000")))
+        uvicorn.run("backend.app.main:app", host=host, port=port, reload=False)
     else:
+        initialize_database()
         run_campaign()
 
 

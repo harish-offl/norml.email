@@ -1,18 +1,15 @@
 # backend framework
-django
-djangorestframework
+fastapi
+uvicorn
 
-# database & models (Django ORM replaces SQLAlchemy)
-# sqlalchemy  # removed, using Django ORM
+# request parsing
+python-multipart
 
 # for interacting with an AI model via HTTP if needed
 requests
 
 # environment variable loader
 python-dotenv
-
-# required by DRF for handling file uploads
-# python-multipart  # not needed with Django
 
 # testing
 pytest

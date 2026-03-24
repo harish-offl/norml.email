@@ -3,16 +3,15 @@ import csv
 import threading
 import time
 
-from backend.smtp_sender import SMTPSender
 from backend.ai_engine import generate_cold_email
-from backend.config import DELAY_BETWEEN_EMAILS, LEAD_FETCH_CHUNK_SIZE, MAX_CONCURRENT_EMAILS
 from backend.app.campaign_status import finish_campaign, record_campaign_progress
+from backend.app.crud import list_campaign_leads, update_lead_delivery
+from backend.config import DELAY_BETWEEN_EMAILS, MAX_CONCURRENT_EMAILS
 from backend.env_utils import BASE_DIR, DATA_DIR
+from backend.smtp_sender import SMTPSender
 
 
 _lead_update_lock = threading.Lock()
-
-# Django should already be configured by the time this module is imported
 
 
 def _parse_email_content(email_content):
@@ -44,34 +43,14 @@ def _deduplicate_leads(leads):
 
 
 def _load_leads(use_csv_fallback=True, only_unsent=True):
-    from backend.app.models import Lead
-
-    leads = []
-    try:
-        db_leads = Lead.objects.all()
-        if only_unsent:
-            db_leads = db_leads.filter(sent_at__isnull=True)
-        db_leads = db_leads.order_by("id")
-        for lead in db_leads.iterator(chunk_size=LEAD_FETCH_CHUNK_SIZE):
-            leads.append(
-                {
-                    "name": lead.name or "",
-                    "email": (lead.email or "").strip().lower(),
-                    "niche": lead.niche or "",
-                    "industry": lead.industry or "",
-                    "phone": lead.phone or "",
-                    "company": lead.company or "",
-                }
-            )
-    except Exception as e:
-        print(f"Could not fetch leads from DB: {e}, falling back to CSV")
+    leads = list_campaign_leads(only_unsent=only_unsent)
 
     if not leads and use_csv_fallback:
         try:
             csv_path = DATA_DIR / "leads.csv"
             if not csv_path.exists():
                 csv_path = BASE_DIR / "leads.csv"
-            with open(csv_path) as file:
+            with open(csv_path, encoding="utf-8") as file:
                 reader = csv.DictReader(file)
                 for row in reader:
                     leads.append(row)
@@ -97,20 +76,13 @@ def _update_lead_delivery(email, *, last_status, last_error="", sent=False):
     if not email:
         return
 
-    from django.db import close_old_connections
-    from django.utils import timezone
-    from backend.app.models import Lead
-
-    update_fields = {
-        "last_status": last_status,
-        "last_error": (last_error or "")[:2000],
-    }
-    if sent:
-        update_fields["sent_at"] = timezone.now()
-
-    close_old_connections()
     with _lead_update_lock:
-        Lead.objects.filter(email__iexact=email).update(**update_fields)
+        update_lead_delivery(
+            email,
+            last_status=last_status,
+            last_error=last_error,
+            sent=sent,
+        )
 
 
 def _mark_lead_sent(email):
@@ -126,52 +98,45 @@ def _mark_lead_skipped(email, reason):
 
 
 def _process_chunk(worker_id, rows):
-    from django.db import close_old_connections
-
     sent = 0
     skipped = 0
     failed = 0
     gen_seconds = 0.0
     send_seconds = 0.0
 
-    close_old_connections()
+    with SMTPSender() as sender:
+        for row in rows:
+            email = (row.get("email") or "").strip().lower()
+            solution = (row.get("niche") or "").strip()
+            if not solution:
+                skipped += 1
+                _mark_lead_skipped(email, "Missing solution/niche")
+                record_campaign_progress(skipped=1)
+                print(f"[worker-{worker_id}] Skipped {email or 'unknown'}: missing solution/niche")
+                continue
 
-    try:
-        with SMTPSender() as sender:
-            for row in rows:
-                email = (row.get("email") or "").strip().lower()
-                solution = (row.get("niche") or "").strip()
-                if not solution:
-                    skipped += 1
-                    _mark_lead_skipped(email, "Missing solution/niche")
-                    record_campaign_progress(skipped=1)
-                    print(f"[worker-{worker_id}] Skipped {email or 'unknown'}: missing solution/niche")
-                    continue
+            try:
+                start_gen = time.perf_counter()
+                email_content = generate_cold_email(row)
+                gen_seconds += time.perf_counter() - start_gen
 
-                try:
-                    start_gen = time.perf_counter()
-                    email_content = generate_cold_email(row)
-                    gen_seconds += time.perf_counter() - start_gen
+                start_send = time.perf_counter()
+                subject, body = _parse_email_content(email_content)
+                sender.send(email, subject, body)
+                send_seconds += time.perf_counter() - start_send
 
-                    start_send = time.perf_counter()
-                    subject, body = _parse_email_content(email_content)
-                    sender.send(email, subject, body)
-                    send_seconds += time.perf_counter() - start_send
+                _mark_lead_sent(email)
+                record_campaign_progress(sent=1)
+                sent += 1
+                print(f"[worker-{worker_id}] Email sent to: {email}")
+            except Exception as exc:
+                failed += 1
+                _mark_lead_failed(email, str(exc))
+                record_campaign_progress(failed=1)
+                print(f"[worker-{worker_id}] Failed {email or 'unknown'}: {exc}")
 
-                    _mark_lead_sent(email)
-                    record_campaign_progress(sent=1)
-                    sent += 1
-                    print(f"[worker-{worker_id}] Email sent to: {email}")
-                except Exception as exc:
-                    failed += 1
-                    _mark_lead_failed(email, str(exc))
-                    record_campaign_progress(failed=1)
-                    print(f"[worker-{worker_id}] Failed {email or 'unknown'}: {exc}")
-
-                if DELAY_BETWEEN_EMAILS > 0:
-                    time.sleep(DELAY_BETWEEN_EMAILS)
-    finally:
-        close_old_connections()
+            if DELAY_BETWEEN_EMAILS > 0:
+                time.sleep(DELAY_BETWEEN_EMAILS)
 
     return {
         "sent": sent,

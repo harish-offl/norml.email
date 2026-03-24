@@ -1,102 +1,287 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Email Automation UI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Email Automation Command Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/frontend/styles.css">
 </head>
 <body>
-  <div id="root"></div>
+  <main class="page">
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Vertical navigation menu">
+        <div class="sidebar-head">
+          <p class="eyebrow">Vertical Navigation Menu</p>
+          <h2>Platform Sections</h2>
+          <p>Use this left menu to move directly to the area you want to work in.</p>
+        </div>
+        <nav class="sidebar-nav" id="sidebarNav">
+          <button type="button" class="side-link is-active" data-target="overviewPanel">
+            <strong>Overview</strong>
+            <span>See the home dashboard and quick action shortcuts.</span>
+          </button>
+          <button type="button" class="side-link" data-target="controlPanel">
+            <strong>Campaign Control</strong>
+            <span>Check readiness and start the sender safely.</span>
+          </button>
+          <button type="button" class="side-link" data-target="monitorPanel">
+            <strong>Live Campaign Monitor</strong>
+            <span>Track progress, status, and delivery outcomes.</span>
+          </button>
+          <button type="button" class="side-link" data-target="workspacePanel">
+            <strong>Leads Workspace</strong>
+            <span>Search, filter, and review every stored lead.</span>
+          </button>
+          <button type="button" class="side-link" data-target="uploadPanel">
+            <strong>Lead Upload</strong>
+            <span>Import CSV files and prepare fresh lead batches.</span>
+          </button>
+        </nav>
+        <div class="sidebar-foot">
+          <span class="tag">Campaign-first</span>
+          <span class="tag">Vertical menu</span>
+          <span class="tag">View switcher</span>
+        </div>
+      </aside>
+      <div class="content-shell">
+    <header class="top">
+      <div class="brand">
+        <div class="mark">EA</div>
+        <div>
+          <p class="eyebrow">Campaign Workspace</p>
+          <h1>Email Automation Command Deck</h1>
+          <p>Upload leads, launch outreach, and track the backend flow from one clear dashboard.</p>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn3" id="refreshAll">Refresh Data</button>
+        <div class="chips" id="topChips"></div>
+      </div>
+    </header>
 
-  <!-- React from CDN for quick prototype -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <div class="notice info" id="notice"><strong>System</strong><span>Loading dashboard data...</span></div>
 
+    <section class="workspace-view is-active" id="overviewPanel">
+      <div class="hero">
+        <article class="hero-main">
+          <p class="eyebrow" style="color:rgba(251,251,247,.72)">Workflow</p>
+          <h2>Upload. Review. Launch. Monitor.</h2>
+          <p>This interface is built around your existing backend: CSV import, campaign start, live status polling, and lead visibility.</p>
+          <div class="hero-notes">
+            <div class="hero-note"><strong>CSV Ingestion</strong><span>Header normalization and replace mode are front and center.</span></div>
+            <div class="hero-note"><strong>Background Campaigns</strong><span>Start once, then let the runner process in the background.</span></div>
+            <div class="hero-note"><strong>Lead Workspace</strong><span>Search and filter sent, pending, skipped, and failed records.</span></div>
+          </div>
+          <div class="actions">
+            <button class="btn2" id="jumpUpload">Go To Lead Upload</button>
+            <button class="btn" id="jumpMonitor">Go To Live Monitor</button>
+          </div>
+        </article>
+        <aside class="stat-grid">
+          <div class="stat"><span>Total Leads</span><strong id="stTotal">0</strong><small id="stTotalNote">Waiting for lead data.</small></div>
+          <div class="stat"><span>Pending</span><strong id="stPending">0</strong><small id="stPendingNote">Ready to be contacted.</small></div>
+          <div class="stat"><span>Delivered</span><strong id="stSent">0</strong><small id="stSentNote">Successfully mailed so far.</small></div>
+          <div class="stat"><span>Attention</span><strong id="stAttention">0</strong><small id="stAttentionNote">Failed or skipped leads.</small></div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="workspace-view" id="uploadPanel">
+      <article class="panel card">
+        <div class="panel-header">
+          <div>
+            <h3>Lead Upload</h3>
+            <p>Bring in CSV leads and control how the backend stores them.</p>
+          </div>
+          <div class="pill" id="uploadChip">CSV import ready</div>
+        </div>
+
+        <label class="drop" id="drop">
+          <strong>Drop a CSV file here or browse your device</strong>
+          <p>Accepted examples: Name, Email, Phone, Company, Industry, Interest or Solution.</p>
+          <div class="tags">
+            <span class="tag">CSV only</span>
+            <span class="tag">Email required</span>
+            <span class="tag">UTF-8 friendly</span>
+          </div>
+          <input id="fileInput" type="file" accept=".csv,text/csv">
+        </label>
+
+        <div class="selected">
+          <div>
+            <strong id="fileName">No file selected yet</strong>
+            <span id="fileMeta">Choose a lead sheet to unlock upload controls.</span>
+          </div>
+          <button class="btn3" id="clearFile" disabled>Clear File</button>
+        </div>
+
+        <div class="toggles">
+          <label class="toggle">
+            <span class="switch"><input type="checkbox" id="replace" checked><span class="slider"></span></span>
+            <span><strong>Replace existing leads</strong><span>Delete old rows before importing this CSV.</span></span>
+          </label>
+          <label class="toggle">
+            <span class="switch"><input type="checkbox" id="require" checked><span class="slider"></span></span>
+            <span><strong>Require solution field</strong><span>Skip rows missing niche, interest, or solution.</span></span>
+          </label>
+        </div>
+
+        <div class="hint">
+          <strong>Backend-aware CSV guidance</strong>
+          <p>Your upload endpoint already normalizes headers, so keep the sheet simple and include at least an email plus a service column.</p>
+          <div class="tags" style="margin-top:10px">
+            <span class="tag"><strong>Name</strong> or Full Name</span>
+            <span class="tag"><strong>Email</strong> or Email Address</span>
+            <span class="tag"><strong>Solution</strong>, Interest, or Niche</span>
+            <span class="tag">Company</span>
+            <span class="tag">Industry</span>
+          </div>
+        </div>
+
+        <div class="actions" style="margin-top:18px">
+          <button class="btn" id="uploadBtn" disabled>Upload Leads</button>
+          <button class="btn3" id="refreshLeads">Refresh Leads</button>
+        </div>
+
+        <div class="summary" id="uploadSummary">
+          <div class="sum"><span>Created</span><strong>0</strong></div>
+          <div class="sum"><span>Updated</span><strong>0</strong></div>
+          <div class="sum"><span>Skipped</span><strong>0</strong></div>
+        </div>
+        <div class="foot" id="ignored">Ignored columns will appear here after an upload.</div>
+      </article>
+    </section>
+
+    <section class="workspace-view" id="controlPanel">
+      <article class="panel card">
+        <div class="panel-header">
+          <div>
+            <h3>Campaign Control</h3>
+            <p>Check readiness before triggering the background sender.</p>
+          </div>
+          <div class="pill" id="campaignChip">Idle</div>
+        </div>
+
+        <ul class="checks" id="checks"></ul>
+        <div class="message"><strong>Current launch context</strong><p id="context">Load leads to see campaign readiness and launch guidance.</p></div>
+        <div class="actions" style="margin-top:18px">
+          <button class="btn" id="startBtn">Start Campaign</button>
+          <button class="btn2" id="refreshStatus">Check Status</button>
+        </div>
+        <div class="foot">The dashboard polls campaign status every 2 seconds while a send job is running.</div>
+      </article>
+    </section>
+
+    <section class="workspace-view" id="monitorPanel">
+      <section class="monitor card">
+        <div class="panel-header">
+          <div>
+            <h3>Live Campaign Monitor</h3>
+            <p>Track processed leads, delivery results, and the backend message in real time.</p>
+          </div>
+          <div class="status" id="statusPill">Idle</div>
+        </div>
+        <div class="band">
+          <div class="chips" id="metaChips"></div>
+          <div class="muted" id="elapsed">Elapsed: n/a</div>
+        </div>
+        <div class="progress">
+          <div class="progress-top">
+            <div><strong id="progressPct">0%</strong><span id="progressLabel">No campaign in progress.</span></div>
+            <small id="progressCount">0 / 0 processed</small>
+          </div>
+          <div class="track"><div class="fill" id="fill"></div></div>
+        </div>
+        <div class="metrics">
+          <div class="metric"><span>Total</span><strong id="mTotal">0</strong></div>
+          <div class="metric"><span>Processed</span><strong id="mProcessed">0</strong></div>
+          <div class="metric"><span>Sent</span><strong id="mSent">0</strong></div>
+          <div class="metric"><span>Skipped</span><strong id="mSkipped">0</strong></div>
+          <div class="metric"><span>Failed</span><strong id="mFailed">0</strong></div>
+        </div>
+        <div class="message" style="margin-top:18px"><strong>Backend message</strong><p id="campaignMessage">Waiting for campaign activity.</p></div>
+      </section>
+    </section>
+
+    <section class="workspace-view" id="workspacePanel">
+      <section class="table-card card">
+        <div class="panel-header">
+          <div>
+            <h3>Leads Workspace</h3>
+            <p>Search, filter, and inspect the records your backend will send or has already processed.</p>
+          </div>
+          <div class="pill" id="leadChip">0 visible leads</div>
+        </div>
+        <div class="table-tools">
+          <div class="search"><input id="search" type="search" placeholder="Search by name, email, company, industry, or solution"></div>
+          <div class="filters" id="filters">
+            <button class="filter on" data-filter="all">All</button>
+            <button class="filter" data-filter="pending">Pending</button>
+            <button class="filter" data-filter="sent">Sent</button>
+            <button class="filter" data-filter="failed">Failed</button>
+            <button class="filter" data-filter="skipped">Skipped</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="tableWrap">
+          <table>
+            <thead>
+              <tr><th>Lead</th><th>Contact</th><th>Company</th><th>Focus</th><th>Status</th><th>Last Update</th><th>Notes</th></tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="empty" hidden><strong>No leads match the current view.</strong><span>Upload a CSV or change your search and status filters to populate this workspace.</span></div>
+      </section>
+    </section>
+      </div>
+    </div>
+  </main>
   <script>
-    const { useEffect, useState } = React;
-    const POLL_INTERVAL_MS = 2000;
+    const VIEW_IDS=["overviewPanel","uploadPanel","controlPanel","monitorPanel","workspacePanel"];
+    const S={file:null,leads:[],campaign:null,upload:null,view:"overviewPanel",notice:{type:"info",text:"Loading dashboard data..."},filter:"all",search:"",load:{leads:false,campaign:false,upload:false,start:false},poll:null},E={},$=id=>document.getElementById(id);
+    class ApiError extends Error{constructor(message,data){super(message);this.data=data}}
+    const esc=v=>String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+    const fmtShort=v=>{if(!v)return"n/a";const d=new Date(v);return Number.isNaN(d.getTime())?v:new Intl.DateTimeFormat(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}).format(d)};
+    const fmtDate=v=>{if(!v)return"Not sent yet";const d=new Date(v);return Number.isNaN(d.getTime())?v:new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(d)};
+    const fmtElapsed=v=>{if(v===null||v===undefined||Number.isNaN(Number(v)))return"n/a";v=Math.max(0,Math.round(Number(v)));return v<60?`${v}s`:`${Math.floor(v/60)}m ${v%60}s`};
+    const fmtSize=v=>!Number.isFinite(v)?"Unknown size":v<1024?`${v} B`:v<1048576?`${(v/1024).toFixed(1)} KB`:`${(v/1048576).toFixed(1)} MB`;
+    const getLeadStatus=l=>{const s=String(l.last_status||"").toLowerCase();if(l.sent_at||s==="sent")return"sent";if(s==="failed")return"failed";if(s==="skipped")return"skipped";return"pending"};
+    const getCampaign=()=>S.campaign||{status:"idle",message:"No campaign has been started yet.",total:0,processed:0,sent:0,skipped:0,failed:0,remaining:0,elapsed_seconds:null,started_at:null,finished_at:null};
+    const campaignText=c=>c&&c.message?c.message:`Campaign ${(c&&c.status)||"idle"}.`;
+    const stats=()=>S.leads.reduce((a,l)=>{const s=getLeadStatus(l);a.total++;if(s==="sent")a.sent++;else if(s==="failed")a.failed++;else if(s==="skipped")a.skipped++;else a.pending++;return a},{total:0,pending:0,sent:0,failed:0,skipped:0});
+    const chipClass=s=>s==="running"?"run":s==="finished"?"good":s==="failed"?"bad":"";
+    const setNotice=(type,text)=>S.notice={type,text};
+    const setActiveNav=target=>{if(!E.sidebarNav)return;[...E.sidebarNav.querySelectorAll("[data-target]")].forEach(btn=>{const active=btn.dataset.target===target;btn.classList.toggle("is-active",active);btn.setAttribute("aria-current",active?"page":"false")})};
+    const applyActiveView=()=>{VIEW_IDS.forEach(id=>{const panel=$(id);if(!panel)return;const active=id===S.view;panel.classList.toggle("is-active",active);panel.hidden=!active;panel.setAttribute("aria-hidden",active?"false":"true")});setActiveNav(S.view)};
+    const setActiveView=(target,shouldScroll=true)=>{if(!VIEW_IDS.includes(target))return;const changed=S.view!==target;S.view=target;applyActiveView();if(changed&&shouldScroll)window.scrollTo({top:0,left:0})};
 
-    function formatCampaignMessage(campaign) {
-      if (!campaign) return '';
-      if (campaign.message) return campaign.message;
-      return `Campaign ${campaign.status}`;
-    }
+    async function json(url,opt){const r=await fetch(url,opt);let d=null;try{d=await r.json()}catch(e){d=null}if(!r.ok)throw new ApiError(d&&d.error?d.error:"Request failed.",d);return d}
+    function setFile(file){if(file&&!file.name.toLowerCase().endsWith(".csv")){S.file=null;E.fileInput.value="";setNotice("error","Please choose a CSV file.");render();return}S.file=file||null;if(file)setNotice("info",`${file.name} is ready to upload.`);render()}
+    function syncPoll(){const run=getCampaign().status==="running";if(S.poll){clearInterval(S.poll);S.poll=null}if(run)S.poll=setInterval(()=>loadCampaign(false),2000)}
 
-    function App() {
-      const [file, setFile] = useState(null);
-      const [message, setMessage] = useState('');
-      const [campaign, setCampaign] = useState(null);
-
-      const loadCampaignStatus = async () => {
-        try {
-          const res = await axios.get('/api/campaign/status/');
-          setCampaign(res.data);
-        } catch (err) {
-          // Keep the last visible state if polling fails briefly.
-        }
-      };
-
-      useEffect(() => {
-        loadCampaignStatus();
-      }, []);
-
-      useEffect(() => {
-        if (campaign?.status !== 'running') {
-          return undefined;
-        }
-
-        const timer = setInterval(loadCampaignStatus, POLL_INTERVAL_MS);
-        return () => clearInterval(timer);
-      }, [campaign?.status]);
-
-      const upload = async () => {
-        if (!file) return;
-        try {
-          const form = new FormData();
-          form.append('file', file);
-          const res = await axios.post('/api/leads/upload/', form, {
-            headers: {'Content-Type': 'multipart/form-data'}
-          });
-          setMessage(`Created ${res.data.created} leads`);
-        } catch (err) {
-          const detail = err?.response?.data?.error || err.message || 'Upload failed';
-          setMessage(`Upload failed: ${detail}`);
-        }
-      };
-
-      const start = async () => {
-        try {
-          setMessage('');
-          const res = await axios.post('/api/campaign/start/');
-          setCampaign(res.data.campaign || null);
-          setMessage(formatCampaignMessage(res.data.campaign) || res.data.status);
-        } catch (err) {
-          const detail = err?.response?.data?.error || err.message || 'Failed to start campaign';
-          setMessage(`Start failed: ${detail}`);
-          if (err?.response?.data?.campaign) {
-            setCampaign(err.response.data.campaign);
-          }
-        }
-      };
-
-      const isCampaignRunning = campaign?.status === 'running';
-
-      return React.createElement('div', null,
-        React.createElement('h1', null, 'Email Automation Dashboard'),
-        React.createElement('input', { type: 'file', onChange: e => setFile(e.target.files[0]) }),
-        React.createElement('button', { onClick: upload }, 'Upload Leads'),
-        React.createElement('button', { onClick: start, disabled: isCampaignRunning }, isCampaignRunning ? 'Campaign Running...' : 'Start Campaign'),
-        React.createElement('p', null, message),
-        campaign && React.createElement('div', null,
-          React.createElement('p', null, `Status: ${campaign.status}`),
-          React.createElement('p', null, `Progress: ${campaign.processed}/${campaign.total}`),
-          React.createElement('p', null, `Sent: ${campaign.sent} | Skipped: ${campaign.skipped} | Failed: ${campaign.failed}`),
-          React.createElement('p', null, formatCampaignMessage(campaign))
-        )
-      );
-    }
-
-    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+    async function loadLeads(show){S.load.leads=true;if(show)setNotice("info","Refreshing lead records from the backend...");render();try{const d=await json("/api/leads/");S.leads=Array.isArray(d)?d:Array.isArray(d&&d.results)?d.results:[];if(show)setNotice("success",`Loaded ${S.leads.length} lead${S.leads.length===1?"":"s"} from the backend.`)}catch(e){setNotice("error",e.message||"Could not load leads.")}finally{S.load.leads=false;render()}}
+    async function loadCampaign(show){S.load.campaign=true;if(show)setNotice("info","Checking the latest campaign status...");render();const prev=getCampaign().status;try{S.campaign=await json("/api/campaign/status/");if(show)setNotice("success",campaignText(S.campaign));syncPoll();if(prev==="running"&&getCampaign().status!=="running")loadLeads(false)}catch(e){setNotice("error",e.message||"Could not load campaign status.")}finally{S.load.campaign=false;render()}}
+    async function refreshAll(show){await Promise.all([loadLeads(show),loadCampaign(show)])}
+    async function upload(){if(!S.file){setNotice("error","Choose a CSV file before uploading leads.");render();return}S.load.upload=true;setNotice("info","Uploading lead file and processing rows...");render();const fd=new FormData();fd.append("file",S.file);fd.append("replace_existing",E.replace.checked?"true":"false");fd.append("require_solution",E.require.checked?"true":"false");try{S.upload=await json("/api/leads/upload/",{method:"POST",body:fd});S.file=null;E.fileInput.value="";setNotice("success",`Upload complete. Created ${S.upload.created||0}, updated ${S.upload.updated||0}, skipped ${S.upload.skipped||0}.`);await loadLeads(false)}catch(e){if(e.data)S.upload={created:0,updated:0,skipped:e.data.skipped||0,ignored_columns:e.data.ignored_columns||[]};setNotice("error",e.message||"Lead upload failed.")}finally{S.load.upload=false;render()}}
+    async function start(){S.load.start=true;setNotice("info","Starting the campaign runner...");render();try{const d=await json("/api/campaign/start/",{method:"POST"});S.campaign=d.campaign||S.campaign;setNotice("success",d.status||campaignText(S.campaign));syncPoll()}catch(e){if(e.data&&e.data.campaign){S.campaign=e.data.campaign;syncPoll()}setNotice("error",e.message||"Could not start the campaign.")}finally{S.load.start=false;render()}}
+    function renderTop(){const st=stats(),c=getCampaign();E.topChips.innerHTML=`<span class="pill ${chipClass(c.status)}"><strong>Campaign</strong>&nbsp;${esc(c.status)}</span><span class="pill"><strong>Leads</strong>&nbsp;${st.total}</span><span class="pill"><strong>Pending</strong>&nbsp;${st.pending}</span>`}
+    function renderNotice(){E.notice.className=`notice ${S.notice.type}`;E.notice.innerHTML=`<strong>System</strong><span>${esc(S.notice.text)}</span>`}
+    function renderFile(){if(!S.file){E.fileName.textContent="No file selected yet";E.fileMeta.textContent="Choose a lead sheet to unlock upload controls.";E.uploadChip.textContent="CSV import ready"}else{E.fileName.textContent=S.file.name;E.fileMeta.textContent=`${fmtSize(S.file.size)} selected and ready for upload.`;E.uploadChip.textContent="File staged for upload"}}
+    function renderUpload(){const u=S.upload||{created:0,updated:0,skipped:0,ignored_columns:[]};E.uploadSummary.innerHTML=`<div class="sum"><span>Created</span><strong>${u.created||0}</strong></div><div class="sum"><span>Updated</span><strong>${u.updated||0}</strong></div><div class="sum"><span>Skipped</span><strong>${u.skipped||0}</strong></div>`;E.ignored.textContent=u.ignored_columns&&u.ignored_columns.length?`Ignored columns: ${u.ignored_columns.join(", ")}`:"Ignored columns will appear here after an upload."}
+    function renderStats(){const s=stats(),a=s.failed+s.skipped;E.stTotal.textContent=s.total;E.stPending.textContent=s.pending;E.stSent.textContent=s.sent;E.stAttention.textContent=a;E.stTotalNote.textContent=s.total?`${s.total} records currently available in the backend.`:"Upload a CSV to create your first campaign batch.";E.stPendingNote.textContent=s.pending?`${s.pending} lead${s.pending===1?"":"s"} still waiting to be emailed.`:"No pending leads right now.";E.stSentNote.textContent=s.sent?`${s.sent} lead${s.sent===1?"":"s"} marked as sent.`:"Sent leads will appear here once the campaign completes.";E.stAttentionNote.textContent=a?`${a} lead${a===1?"":"s"} need review.`:"No failed or skipped leads so far."}
+    function renderControl(){const s=stats(),c=getCampaign(),running=c.status==="running",hasLeads=s.total>0,hasPending=s.pending>0;E.campaignChip.className=`pill ${chipClass(c.status)}`;E.campaignChip.textContent=c.status;E.checks.innerHTML=[{ok:hasLeads,t:hasLeads?"Lead list available":"No leads loaded yet",d:hasLeads?`${s.total} lead${s.total===1?"":"s"} can be reviewed before launch.`:"Upload a CSV file first so the backend has records to process."},{ok:hasPending,t:hasPending?"Pending leads ready":"No pending leads left",d:hasPending?`${s.pending} lead${s.pending===1?"":"s"} are still eligible for sending.`:"Either the list is empty or every lead has already been processed."},{ok:!running,t:running?"Campaign already running":"Runner available",d:running?"Wait for the current background campaign to finish before starting another one.":"The backend is ready to accept a new launch request."}].map(i=>`<li class="check ${i.ok?"goodx":"warnx"}"><span class="icon">${i.ok?"OK":"!"}</span><div><strong>${esc(i.t)}</strong><span>${esc(i.d)}</span></div></li>`).join("");E.context.textContent=running?"A campaign is already running. Use the monitor below to track progress until the backend finishes.":!hasLeads?"No leads are stored yet. Upload a CSV before launching.":!hasPending?"All stored leads are already processed. Upload a fresh file or replace existing leads to restart outreach.":`${s.pending} pending lead${s.pending===1?"":"s"} are ready for the next campaign run.`}
+    function renderMonitor(){const c=getCampaign(),t=Number(c.total||0),p=Number(c.processed||0),pct=t?Math.min(100,Math.round(p/t*100)):0;E.statusPill.className=`status ${chipClass(c.status)}`;E.statusPill.textContent=c.status;E.elapsed.textContent=`Elapsed: ${fmtElapsed(c.elapsed_seconds)}`;E.progressPct.textContent=`${pct}%`;E.progressLabel.textContent=c.status==="running"?"Campaign is actively processing leads.":campaignText(c);E.progressCount.textContent=`${p} / ${t} processed`;E.fill.style.width=`${pct}%`;E.fill.classList.toggle("run",c.status==="running");E.mTotal.textContent=t;E.mProcessed.textContent=p;E.mSent.textContent=c.sent||0;E.mSkipped.textContent=c.skipped||0;E.mFailed.textContent=c.failed||0;E.campaignMessage.textContent=campaignText(c);E.metaChips.innerHTML=`<span class="pill ${chipClass(c.status)}"><strong>Status</strong>&nbsp;${esc(c.status)}</span><span class="pill"><strong>Remaining</strong>&nbsp;${esc(c.remaining||0)}</span><span class="pill"><strong>Started</strong>&nbsp;${esc(fmtShort(c.started_at))}</span><span class="pill"><strong>Finished</strong>&nbsp;${esc(fmtShort(c.finished_at))}</span>`}
+    function viewLeads(){return S.leads.filter(l=>{const st=getLeadStatus(l);if(S.filter!=="all"&&st!==S.filter)return false;if(!S.search)return true;const hay=[l.name,l.email,l.company,l.industry,l.niche,l.phone].filter(Boolean).join(" ").toLowerCase();return hay.includes(S.search)})}
+    function renderLeads(){const rows=viewLeads(),total=S.leads.length;E.leadChip.textContent=`${rows.length} visible lead${rows.length===1?"":"s"}`;[...E.filters.querySelectorAll("[data-filter]")].forEach(b=>b.classList.toggle("on",b.dataset.filter===S.filter));if(!rows.length){E.tbody.innerHTML="";E.tableWrap.hidden=true;E.empty.hidden=false;E.empty.querySelector("span").textContent=total===0?"Upload a CSV or use the backend upload endpoint to populate leads.":"Try a different search phrase or switch to another status filter.";return}E.tableWrap.hidden=false;E.empty.hidden=true;E.tbody.innerHTML=rows.map(l=>{const st=getLeadStatus(l),note=esc(l.last_error||"No errors logged.");return`<tr><td><div class="lead"><strong>${esc(l.name||"Unnamed lead")}</strong><span>${esc(l.industry||"Industry not set")}</span></div></td><td><div class="lead"><strong>${esc(l.email||"-")}</strong><span>${esc(l.phone||"No phone listed")}</span></div></td><td><div class="lead"><strong>${esc(l.company||"Unknown company")}</strong><span>${esc(l.industry||"No industry")}</span></div></td><td><div class="lead"><strong>${esc(l.niche||"No solution")}</strong><span>Service focus</span></div></td><td><span class="tag-status ${st}">${esc(st)}</span></td><td><span class="muted">${esc(fmtDate(l.sent_at))}</span></td><td><span class="muted" title="${note}">${note}</span></td></tr>`}).join("")}
+    function renderButtons(){const s=stats(),c=getCampaign(),running=c.status==="running",busy=S.load.upload||S.load.start||S.load.leads||S.load.campaign;E.clearFile.disabled=!S.file;E.uploadBtn.disabled=!S.file||S.load.upload;E.uploadBtn.textContent=S.load.upload?"Uploading...":"Upload Leads";E.startBtn.disabled=running||!s.total||!s.pending||S.load.start;E.startBtn.textContent=S.load.start?"Launching...":running?"Campaign Running...":"Start Campaign";E.refreshAll.disabled=busy;E.refreshLeads.disabled=S.load.leads;E.refreshStatus.disabled=S.load.campaign}
+    function render(){renderNotice();renderTop();renderFile();renderUpload();renderStats();renderControl();renderMonitor();renderLeads();renderButtons();applyActiveView()}
+    function initSidebarNav(){if(!E.sidebarNav)return;[...E.sidebarNav.querySelectorAll("[data-target]")].forEach(btn=>btn.onclick=()=>setActiveView(btn.dataset.target))}
+    function bind(){E.refreshAll.onclick=()=>refreshAll(true);E.refreshLeads.onclick=()=>loadLeads(true);E.refreshStatus.onclick=()=>loadCampaign(true);E.uploadBtn.onclick=upload;E.startBtn.onclick=start;E.clearFile.onclick=()=>{S.file=null;E.fileInput.value="";render()};E.fileInput.onchange=e=>setFile(e.target.files&&e.target.files[0]?e.target.files[0]:null);E.search.oninput=e=>{S.search=e.target.value.trim().toLowerCase();renderLeads()};E.filters.onclick=e=>{const b=e.target.closest("[data-filter]");if(!b)return;S.filter=b.dataset.filter;renderLeads()};E.jumpUpload.onclick=()=>setActiveView("uploadPanel");E.jumpMonitor.onclick=()=>setActiveView("monitorPanel");["dragenter","dragover"].forEach(n=>E.drop.addEventListener(n,e=>{e.preventDefault();E.drop.classList.add("on")}));["dragleave","dragend","drop"].forEach(n=>E.drop.addEventListener(n,e=>{e.preventDefault();if(n==="drop"&&e.dataTransfer&&e.dataTransfer.files.length)setFile(e.dataTransfer.files[0]);E.drop.classList.remove("on")}));initSidebarNav()}
+    function init(){Object.assign(E,{refreshAll:$("refreshAll"),topChips:$("topChips"),jumpUpload:$("jumpUpload"),jumpMonitor:$("jumpMonitor"),sidebarNav:$("sidebarNav"),stTotal:$("stTotal"),stPending:$("stPending"),stSent:$("stSent"),stAttention:$("stAttention"),stTotalNote:$("stTotalNote"),stPendingNote:$("stPendingNote"),stSentNote:$("stSentNote"),stAttentionNote:$("stAttentionNote"),notice:$("notice"),uploadPanel:$("uploadPanel"),uploadChip:$("uploadChip"),drop:$("drop"),fileInput:$("fileInput"),fileName:$("fileName"),fileMeta:$("fileMeta"),clearFile:$("clearFile"),replace:$("replace"),require:$("require"),uploadBtn:$("uploadBtn"),refreshLeads:$("refreshLeads"),uploadSummary:$("uploadSummary"),ignored:$("ignored"),campaignChip:$("campaignChip"),checks:$("checks"),context:$("context"),startBtn:$("startBtn"),refreshStatus:$("refreshStatus"),monitorPanel:$("monitorPanel"),statusPill:$("statusPill"),metaChips:$("metaChips"),elapsed:$("elapsed"),progressPct:$("progressPct"),progressLabel:$("progressLabel"),progressCount:$("progressCount"),fill:$("fill"),mTotal:$("mTotal"),mProcessed:$("mProcessed"),mSent:$("mSent"),mSkipped:$("mSkipped"),mFailed:$("mFailed"),campaignMessage:$("campaignMessage"),leadChip:$("leadChip"),search:$("search"),filters:$("filters"),tableWrap:$("tableWrap"),tbody:$("tbody"),empty:$("empty")});bind();render();refreshAll(false)}
+    window.addEventListener("beforeunload",()=>{if(S.poll)clearInterval(S.poll)});document.addEventListener("DOMContentLoaded",init);
   </script>
 </body>
 </html>
