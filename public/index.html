@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NORML AGENCY — Email Automation Command Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-mark">NA</div>
+        <div class="brand-text">
+          <span class="brand-name">NORML AGENCY</span>
+          <span class="brand-sub">Email Automation</span>
+        </div>
+      </div>
+      <nav class="sidebar-nav" id="sidebarNav">
+        <a class="nav-item active" data-target="uploadPanel" tabindex="0">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+          Lead Upload
+        </a>
+        <a class="nav-item" data-target="overviewPanel" tabindex="0">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Overview
+        </a>
+        <a class="nav-item" data-target="controlPanel" tabindex="0">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Campaign Control
+        </a>
+        <a class="nav-item" data-target="monitorPanel" tabindex="0">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Live Monitor
+        </a>
+        <a class="nav-item" data-target="workspacePanel" tabindex="0">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Leads Workspace
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Campaign-first platform
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="top-header">
+        <div class="header-left">
+          <button class="sidebar-toggle" id="sidebarToggle">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <div class="header-brand">
+            <div class="header-logo">NA</div>
+            <div>
+              <h1 class="header-title">NORML AGENCY</h1>
+              <p class="header-subtitle">Email Automation Command Deck</p>
+            </div>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="chips" id="topChips"></div>
+          <button class="btn-ghost" id="refreshAll">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Refresh
+          </button>
+        </div>
+      </header>
+
+      <div class="notice info" id="notice"><strong>System</strong><span>Loading dashboard data...</span></div>
+
+      <!-- UPLOAD PANEL -->
+      <section class="workspace-view" id="uploadPanel">
+        <div class="panel-title-row">
+          <div><h2 class="panel-title">Lead Upload</h2><p class="panel-desc">Upload a CSV and send personalised emails to every lead instantly.</p></div>
+          <div class="badge-orange" id="uploadChip">Ready</div>
+        </div>
+        <div class="glass-card">
+          <label class="drop-zone" id="drop">
+            <div class="drop-inner">
+              <div class="drop-icon-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+              </div>
+              <strong>Drop a CSV or Excel file here, or click to browse</strong>
+              <p>Columns: Name, Email, Company, Industry, Solution / Interest</p>
+              <div class="tag-row">
+                <span class="tag">CSV</span><span class="tag">XLSX</span><span class="tag">Email required</span>
+              </div>
+            </div>
+            <input id="fileInput" type="file" accept=".csv,.xlsx,.xls,text/csv">
+          </label>
+          <div class="file-selected">
+            <div>
+              <strong id="fileName">No file selected yet</strong>
+              <span id="fileMeta">Choose a file to unlock upload &amp; send.</span>
+            </div>
+            <button class="btn-ghost-sm" id="clearFile" disabled>✕ Clear</button>
+          </div>
+          <div class="hint-box">
+            <strong>Required column names (case-insensitive)</strong>
+            <div class="tag-row" style="margin-top:10px">
+              <span class="tag"><em>Name</em></span>
+              <span class="tag"><em>Email</em></span>
+              <span class="tag"><em>Company</em></span>
+              <span class="tag"><em>Solution</em> / Interest / Niche</span>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn-primary" id="uploadBtn" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg>
+              Upload &amp; Send Emails
+            </button>
+            <button class="btn-ghost" id="refreshLeads">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              Refresh
+            </button>
+          </div>
+          <div class="summary-grid" id="uploadSummary">
+            <div class="sum-card"><span>Sent</span><strong id="sumSent">0</strong></div>
+            <div class="sum-card"><span>Skipped</span><strong id="sumSkipped">0</strong></div>
+            <div class="sum-card"><span>Failed</span><strong id="sumFailed">0</strong></div>
+          </div>
+          <p class="foot-note" id="uploadNote">Results will appear here after upload.</p>
+        </div>
+      </section>
+
+      <!-- OVERVIEW PANEL -->
+      <section class="workspace-view" id="overviewPanel">
+        <div class="panel-title-row">
+          <div><h2 class="panel-title">Overview</h2><p class="panel-desc">Campaign health at a glance.</p></div>
+        </div>
+        <div class="overview-stats">
+          <div class="stat-card"><div class="stat-icon orange">✉</div><span>Total Sent</span><strong id="stTotal">0</strong><small id="stTotalNote">Upload a CSV to begin.</small></div>
+          <div class="stat-card"><div class="stat-icon yellow">⏳</div><span>Skipped</span><strong id="stPending">0</strong><small id="stPendingNote">Missing email or fields.</small></div>
+          <div class="stat-card"><div class="stat-icon green">✓</div><span>Delivered</span><strong id="stSent">0</strong><small id="stSentNote">Successfully sent.</small></div>
+          <div class="stat-card"><div class="stat-icon red">!</div><span>Failed</span><strong id="stAttention">0</strong><small id="stAttentionNote">SMTP errors.</small></div>
+        </div>
+        <div class="glass-card hero-card">
+          <div class="hero-content">
+            <p class="eyebrow">Workflow</p>
+            <h2>Upload. Parse.<br>Send. Monitor.</h2>
+            <p>Drop a CSV or Excel file, and the serverless engine parses every row and fires personalised cold emails via your SMTP credentials — no backend required.</p>
+            <div class="hero-notes">
+              <div class="hero-note"><strong>Serverless</strong><span>Runs on Vercel Node.js functions — no server to manage.</span></div>
+              <div class="hero-note"><strong>Excel + CSV</strong><span>Supports .csv, .xlsx, and .xls formats out of the box.</span></div>
+              <div class="hero-note"><strong>Personalised</strong><span>Each email uses the lead's name, company, and niche.</span></div>
+            </div>
+            <div class="actions">
+              <button class="btn-orange" id="jumpUpload">Upload Leads</button>
+              <button class="btn-ghost" id="jumpMonitor">Live Monitor</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CAMPAIGN CONTROL PANEL -->
+      <section class="workspace-view" id="controlPanel">
+        <div class="panel-title-row">
+          <div><h2 class="panel-title">Campaign Control</h2><p class="panel-desc">Sender settings and readiness checks.</p></div>
+          <div class="badge-status" id="campaignChip">Idle</div>
+        </div>
+        <div class="control-grid">
+          <div class="glass-card">
+            <h4 class="card-label">Readiness Checks</h4>
+            <ul class="checks" id="checks"></ul>
+            <div class="message-box"><strong>Status</strong><p id="context">Upload a CSV to begin.</p></div>
+            <div class="actions" style="margin-top:20px">
+              <button class="btn-orange" id="startBtn" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Start Campaign
+              </button>
+              <button class="btn-ghost" id="refreshStatus">Check Status</button>
+            </div>
+            <p class="foot-note">Upload a CSV from the Lead Upload panel to enable the campaign.</p>
+          </div>
+          <div class="glass-card">
+            <h4 class="card-label">Sender Settings</h4>
+            <div class="setting-row"><span>Sender Warmup</span><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+            <div class="setting-row"><span>Rotate Inbox</span><label class="switch"><input type="checkbox" checked><span class="slider"></span></label></div>
+            <div class="setting-row"><span>Auto Follow-up</span><label class="switch"><input type="checkbox"><span class="slider"></span></label></div>
+            <div class="slider-row">
+              <div class="slider-label"><span>Daily Send Limit</span><strong>50</strong></div>
+              <input type="range" class="range-slider" min="1" max="200" value="50" oninput="this.previousElementSibling.querySelector('strong').textContent=this.value">
+            </div>
+            <div class="slider-row">
+              <div class="slider-label"><span>Delay Between Emails (s)</span><strong>0</strong></div>
+              <input type="range" class="range-slider" min="0" max="60" value="0" oninput="this.previousElementSibling.querySelector('strong').textContent=this.value">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- LIVE MONITOR PANEL -->
+      <section class="workspace-view" id="monitorPanel">
+        <div class="panel-title-row">
+          <div><h2 class="panel-title">Live Campaign Monitor</h2><p class="panel-desc">Real-time delivery results.</p></div>
+          <div class="badge-status" id="statusPill">Idle</div>
+        </div>
+        <div class="metrics-row">
+          <div class="metric-card"><span>Total</span><strong id="mTotal">0</strong></div>
+          <div class="metric-card"><span>Processed</span><strong id="mProcessed">0</strong></div>
+          <div class="metric-card green"><span>Sent</span><strong id="mSent">0</strong></div>
+          <div class="metric-card yellow"><span>Skipped</span><strong id="mSkipped">0</strong></div>
+          <div class="metric-card red"><span>Failed</span><strong id="mFailed">0</strong></div>
+        </div>
+        <div class="glass-card">
+          <div class="monitor-meta">
+            <div class="chips" id="metaChips"></div>
+            <span class="muted" id="elapsed">Elapsed: n/a</span>
+          </div>
+          <div class="progress-wrap">
+            <div class="progress-top">
+              <div><strong id="progressPct">0%</strong><span id="progressLabel">No campaign in progress.</span></div>
+              <small id="progressCount">0 / 0 processed</small>
+            </div>
+            <div class="track"><div class="fill" id="fill"></div></div>
+          </div>
+          <div class="message-box" style="margin-top:18px"><strong>Last result</strong><p id="campaignMessage">Waiting for campaign activity.</p></div>
+        </div>
+      </section>
+
+      <!-- LEADS WORKSPACE PANEL -->
+      <section class="workspace-view" id="workspacePanel">
+        <div class="panel-title-row">
+          <div><h2 class="panel-title">Leads Workspace</h2><p class="panel-desc">Leads sent in the last upload session.</p></div>
+          <div class="badge-orange" id="leadChip">0 leads</div>
+        </div>
+        <div class="glass-card">
+          <div class="table-tools">
+            <div class="search-wrap">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input id="search" type="search" placeholder="Search name, email, company…">
+            </div>
+            <div class="filters" id="filters">
+              <button class="filter-btn on" data-filter="all">All</button>
+              <button class="filter-btn" data-filter="sent">Sent</button>
+              <button class="filter-btn" data-filter="failed">Failed</button>
+              <button class="filter-btn" data-filter="skipped">Skipped</button>
+            </div>
+          </div>
+          <div class="table-wrap" id="tableWrap">
+            <table>
+              <thead><tr><th>Name</th><th>Email</th><th>Company</th><th>Niche</th><th>Status</th></tr></thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="empty" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.41 2 2 0 0 1 3.6 1.22h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6.13 6.13l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <strong>No leads yet.</strong><span>Upload a CSV to populate this workspace.</span>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // ── state ──
+    const VIEW_IDS=["uploadPanel","overviewPanel","controlPanel","monitorPanel","workspacePanel"];
+    const S={file:null,leads:[],lastResult:null,view:"uploadPanel",notice:{type:"info",text:"Ready."},filter:"all",search:""},E={},$=id=>document.getElementById(id);
+    const esc=v=>String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    const fmtSize=v=>!Number.isFinite(v)?"?":v<1024?`${v}B`:v<1048576?`${(v/1024).toFixed(1)}KB`:`${(v/1048576).toFixed(1)}MB`;
+    const setNotice=(type,text)=>{S.notice={type,text};renderNotice()};
+
+    // ── view switching ──
+    const applyActiveView=()=>{VIEW_IDS.forEach(id=>{const p=$(id);if(!p)return;const a=id===S.view;p.classList.toggle("is-active",a);p.hidden=!a});setActiveNav(S.view)};
+    const setActiveNav=t=>{if(!E.sidebarNav)return;[...E.sidebarNav.querySelectorAll("[data-target]")].forEach(el=>el.classList.toggle("active",el.dataset.target===t))};
+    const setView=(t,scroll=true)=>{if(!VIEW_IDS.includes(t))return;S.view=t;applyActiveView();if(scroll)window.scrollTo({top:0})};
+
+    // ── file handling ──
+    function setFile(file){
+      const ok=file&&(file.name.endsWith(".csv")||file.name.endsWith(".xlsx")||file.name.endsWith(".xls"));
+      if(file&&!ok){S.file=null;E.fileInput.value="";setNotice("error","Please choose a .csv or .xlsx file.");return}
+      S.file=file||null;
+      if(file)setNotice("info",`${file.name} (${fmtSize(file.size)}) ready to upload.`);
+      renderButtons();renderFile();
+    }
+
+    // ── upload & send ──
+    async function upload(){
+      if(!S.file){setNotice("error","Choose a file first.");return}
+      E.uploadBtn.disabled=true;E.uploadBtn.textContent="Sending…";
+      setNotice("info","Uploading and sending emails — this may take a moment…");
+      const fd=new FormData();fd.append("file",S.file);
+      try{
+        const r=await fetch("/api/upload-leads",{method:"POST",body:fd});
+        const d=await r.json();
+        if(!r.ok)throw new Error(d.error||"Upload failed");
+        S.lastResult=d;
+        S.leads=d.leads||[];
+        setNotice("success",`Done! Sent: ${d.sent}, Skipped: ${d.skipped}, Failed: ${d.failed}`);
+        renderSummary(d);renderLeads();renderStats(d);
+        setView("monitorPanel");
+        renderMonitor(d);
+      }catch(e){
+        setNotice("error",e.message||"Upload failed.");
+      }finally{
+        S.file=null;E.fileInput.value="";
+        renderButtons();renderFile();
+      }
+    }
+
+    // ── render functions ──
+    function renderNotice(){if(!E.notice)return;E.notice.className=`notice ${S.notice.type}`;E.notice.innerHTML=`<strong>System</strong><span>${esc(S.notice.text)}</span>`}
+    function renderFile(){if(!E.fileName)return;if(!S.file){E.fileName.textContent="No file selected yet";E.fileMeta.textContent="Choose a file to unlock upload & send.";E.uploadChip.textContent="Ready"}else{E.fileName.textContent=S.file.name;E.fileMeta.textContent=`${fmtSize(S.file.size)} — ready to send`;E.uploadChip.textContent="File staged"}}
+    function renderButtons(){if(E.uploadBtn){E.uploadBtn.disabled=!S.file;E.uploadBtn.textContent="Upload & Send Emails"}if(E.clearFile)E.clearFile.disabled=!S.file}
+    function renderSummary(d){
+      if(E.sumSent)E.sumSent.textContent=d.sent||0;
+      if(E.sumSkipped)E.sumSkipped.textContent=d.skipped||0;
+      if(E.sumFailed)E.sumFailed.textContent=d.failed||0;
+      if(E.uploadNote)E.uploadNote.textContent=d.errors&&d.errors.length?`Errors: ${d.errors.map(e=>e.email).join(", ")}`:"All emails processed.";
+    }
+    function renderStats(d){
+      if(E.stTotal)E.stTotal.textContent=d.total||0;
+      if(E.stPending)E.stPending.textContent=d.skipped||0;
+      if(E.stSent)E.stSent.textContent=d.sent||0;
+      if(E.stAttention)E.stAttention.textContent=d.failed||0;
+    }
+    function renderMonitor(d){
+      const t=d.total||0,s=d.sent||0,pct=t?Math.round(s/t*100):0;
+      if(E.statusPill){E.statusPill.className="badge-status chip-good";E.statusPill.textContent="finished"}
+      if(E.progressPct)E.progressPct.textContent=`${pct}%`;
+      if(E.progressLabel)E.progressLabel.textContent=`Campaign complete.`;
+      if(E.progressCount)E.progressCount.textContent=`${s} / ${t} sent`;
+      if(E.fill)E.fill.style.width=`${pct}%`;
+      if(E.mTotal)E.mTotal.textContent=t;
+      if(E.mProcessed)E.mProcessed.textContent=t;
+      if(E.mSent)E.mSent.textContent=s;
+      if(E.mSkipped)E.mSkipped.textContent=d.skipped||0;
+      if(E.mFailed)E.mFailed.textContent=d.failed||0;
+      if(E.campaignMessage)E.campaignMessage.textContent=`Sent ${s} of ${t} emails. Skipped: ${d.skipped||0}. Failed: ${d.failed||0}.`;
+      if(E.topChips)E.topChips.innerHTML=`<span class="chip chip-good"><strong>Status</strong> finished</span><span class="chip"><strong>Sent</strong> ${s}</span><span class="chip"><strong>Total</strong> ${t}</span>`;
+    }
+    function renderLeads(){
+      const rows=(S.leads||[]).filter(l=>{
+        if(S.filter!=="all"&&l.status!==S.filter)return false;
+        if(!S.search)return true;
+        return[l.name,l.email,l.company,l.niche].filter(Boolean).join(" ").toLowerCase().includes(S.search);
+      });
+      if(E.leadChip)E.leadChip.textContent=`${rows.length} lead${rows.length===1?"":"s"}`;
+      [...(E.filters||{querySelectorAll:()=>[]}).querySelectorAll("[data-filter]")].forEach(b=>b.classList.toggle("on",b.dataset.filter===S.filter));
+      if(!rows.length){if(E.tableWrap)E.tableWrap.hidden=true;if(E.empty)E.empty.hidden=false;return}
+      if(E.tableWrap)E.tableWrap.hidden=false;if(E.empty)E.empty.hidden=true;
+      if(E.tbody)E.tbody.innerHTML=rows.map(l=>`<tr>
+        <td><div class="lead-cell"><strong>${esc(l.name||"—")}</strong></div></td>
+        <td><div class="lead-cell"><strong>${esc(l.email||"—")}</strong></div></td>
+        <td><div class="lead-cell"><strong>${esc(l.company||"—")}</strong></div></td>
+        <td><div class="lead-cell"><strong>${esc(l.niche||"—")}</strong></div></td>
+        <td><span class="status-tag ${esc(l.status||"skipped")}">${esc(l.status||"skipped")}</span></td>
+      </tr>`).join("");
+    }
+    function renderChecks(){
+      const hasSent=S.lastResult&&S.lastResult.sent>0;
+      if(E.checks)E.checks.innerHTML=[
+        {ok:true,t:"Serverless API active",d:"Vercel function /api/upload-leads is live."},
+        {ok:!!S.lastResult,t:S.lastResult?"Last campaign complete":"No campaign run yet",d:S.lastResult?`Sent ${S.lastResult.sent}, skipped ${S.lastResult.skipped}.`:"Upload a CSV to start."},
+        {ok:hasSent,t:hasSent?"Emails delivered":"No emails sent yet",d:hasSent?`${S.lastResult.sent} emails sent successfully.`:"Upload leads to send emails."}
+      ].map(i=>`<li class="check-item ${i.ok?"ok":"warn"}"><span class="check-icon">${i.ok?"✓":"!"}</span><div><strong>${esc(i.t)}</strong><span>${esc(i.d)}</span></div></li>`).join("");
+      if(E.context)E.context.textContent=S.lastResult?`Last run: ${S.lastResult.sent} sent, ${S.lastResult.skipped} skipped, ${S.lastResult.failed} failed.`:"Upload a CSV from the Lead Upload panel to start.";
+    }
+
+    // ── init ──
+    function bind(){
+      E.uploadBtn.onclick=upload;
+      E.clearFile.onclick=()=>{S.file=null;E.fileInput.value="";renderFile();renderButtons()};
+      E.fileInput.onchange=e=>setFile(e.target.files[0]||null);
+      E.refreshAll.onclick=()=>{setNotice("info","Refreshed.");renderChecks()};
+      E.refreshLeads.onclick=()=>{renderLeads();setNotice("info","Leads refreshed.")};
+      E.refreshStatus.onclick=()=>{renderChecks();setNotice("info","Status refreshed.")};
+      E.startBtn.onclick=()=>setNotice("info","Upload a CSV from Lead Upload to start a campaign.");
+      E.jumpUpload.onclick=()=>setView("uploadPanel");
+      E.jumpMonitor.onclick=()=>setView("monitorPanel");
+      E.sidebarToggle.onclick=()=>document.getElementById("sidebar").classList.toggle("open");
+      E.search.oninput=e=>{S.search=e.target.value.trim().toLowerCase();renderLeads()};
+      E.filters.onclick=e=>{const b=e.target.closest("[data-filter]");if(!b)return;S.filter=b.dataset.filter;renderLeads()};
+      [...E.sidebarNav.querySelectorAll("[data-target]")].forEach(el=>{
+        const go=()=>setView(el.dataset.target);
+        el.addEventListener("click",go);
+        el.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}});
+      });
+      ["dragenter","dragover"].forEach(n=>E.drop.addEventListener(n,e=>{e.preventDefault();E.drop.classList.add("on")}));
+      ["dragleave","dragend","drop"].forEach(n=>E.drop.addEventListener(n,e=>{e.preventDefault();if(n==="drop"&&e.dataTransfer&&e.dataTransfer.files.length)setFile(e.dataTransfer.files[0]);E.drop.classList.remove("on")}));
+    }
+    function init(){
+      Object.assign(E,{
+        refreshAll:$("refreshAll"),topChips:$("topChips"),sidebarNav:$("sidebarNav"),sidebarToggle:$("sidebarToggle"),
+        notice:$("notice"),uploadChip:$("uploadChip"),drop:$("drop"),fileInput:$("fileInput"),
+        fileName:$("fileName"),fileMeta:$("fileMeta"),clearFile:$("clearFile"),
+        uploadBtn:$("uploadBtn"),refreshLeads:$("refreshLeads"),
+        sumSent:$("sumSent"),sumSkipped:$("sumSkipped"),sumFailed:$("sumFailed"),uploadNote:$("uploadNote"),
+        stTotal:$("stTotal"),stPending:$("stPending"),stSent:$("stSent"),stAttention:$("stAttention"),
+        stTotalNote:$("stTotalNote"),stPendingNote:$("stPendingNote"),stSentNote:$("stSentNote"),stAttentionNote:$("stAttentionNote"),
+        campaignChip:$("campaignChip"),checks:$("checks"),context:$("context"),startBtn:$("startBtn"),refreshStatus:$("refreshStatus"),
+        statusPill:$("statusPill"),metaChips:$("metaChips"),elapsed:$("elapsed"),
+        progressPct:$("progressPct"),progressLabel:$("progressLabel"),progressCount:$("progressCount"),fill:$("fill"),
+        mTotal:$("mTotal"),mProcessed:$("mProcessed"),mSent:$("mSent"),mSkipped:$("mSkipped"),mFailed:$("mFailed"),
+        campaignMessage:$("campaignMessage"),leadChip:$("leadChip"),search:$("search"),
+        filters:$("filters"),tableWrap:$("tableWrap"),tbody:$("tbody"),empty:$("empty"),
+        jumpUpload:$("jumpUpload"),jumpMonitor:$("jumpMonitor")
+      });
+      bind();renderNotice();renderFile();renderButtons();renderChecks();applyActiveView();
+      if(E.topChips)E.topChips.innerHTML=`<span class="chip"><strong>Status</strong> idle</span><span class="chip"><strong>Leads</strong> 0</span>`;
+    }
+    document.addEventListener("DOMContentLoaded",init);
+  </script>
+</body>
+</html>

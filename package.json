@@ -2,11 +2,16 @@
   "name": "norml-automation",
   "version": "1.0.0",
   "description": "NORML Agency — Email Automation Command Deck",
-  "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js"
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "formidable": "^3.5.1",
+    "nodemailer": "^6.9.14",
+    "xlsx": "^0.18.5"
   }
 }
