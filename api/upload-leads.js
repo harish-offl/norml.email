@@ -83,7 +83,7 @@ export default async function handler(req, res) {
     const transporter = buildTransporter();
 
     // 4. Send emails
-    const results = { sent: 0, skipped: 0, failed: 0, errors: [] };
+    const results = { sent: 0, skipped: 0, failed: 0, errors: [], leads: [] };
     const senderName  = process.env.SENDER_NAME  || "NORML Agency";
     const agencyName  = process.env.AGENCY_NAME  || "NORML Agency";
     const fromAddress = process.env.EMAIL_USER;
@@ -94,7 +94,11 @@ export default async function handler(req, res) {
       const company = normalizeKey(row, "company", "Company", "company name") || "";
       const niche   = normalizeKey(row, "niche", "solution", "interest", "service") || "your business";
 
-      if (!email || !email.includes("@")) { results.skipped++; continue; }
+      if (!email || !email.includes("@")) {
+        results.skipped++;
+        results.leads.push({ name, email: email || "—", company, niche, status: "skipped" });
+        continue;
+      }
 
       try {
         await transporter.sendMail({
@@ -105,16 +109,22 @@ export default async function handler(req, res) {
           html: buildHtml(name, company, niche, agencyName, senderName),
         });
         results.sent++;
+        results.leads.push({ name, email, company, niche, status: "sent" });
       } catch (err) {
         results.failed++;
         results.errors.push({ email, error: err.message });
+        results.leads.push({ name, email, company, niche, status: "failed", error: err.message });
       }
     }
 
     return res.status(200).json({
       success: true,
       total: rows.length,
-      ...results,
+      sent: results.sent,
+      skipped: results.skipped,
+      failed: results.failed,
+      errors: results.errors,
+      leads: results.leads,
     });
 
   } catch (err) {

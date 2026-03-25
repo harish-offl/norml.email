@@ -3,11 +3,7 @@
   "functions": {
     "api/*.js": { "runtime": "nodejs18.x" }
   },
-  "routes": [
-    { "src": "/api/upload-leads", "dest": "/api/upload-leads.js" },
-    { "src": "/api/leads",        "dest": "/api/leads.js" },
-    { "src": "/api/campaign-status", "dest": "/api/campaign-status.js" },
-    { "src": "/styles.css",       "dest": "/public/styles.css" },
-    { "src": "/(.*)",             "dest": "/public/index.html" }
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/public/index.html" }
   ]
 }
