@@ -1,7 +1,4 @@
-export default function handler(req, res) {
-  if (req.method === "GET") {
-    // No DB on Vercel — return empty list
-    return res.status(200).json([]);
-  }
-  return res.status(405).json({ error: "Method not allowed" });
-}
+module.exports = function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  return res.status(200).json([]);
+};
