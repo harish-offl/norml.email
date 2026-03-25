@@ -23,3 +23,12 @@ norml-app/.vercel
 norml-app/next-env.d.ts
 # Package lock files (optional - keep if you want)
 # norml-app/package-lock.json
+
+# Vercel / Node
+node_modules/
+.vercel
+
+# SQLite runtime files
+*.db
+*.db-shm
+*.db-wal
