@@ -1,5 +1,6 @@
 import concurrent.futures
 import csv
+import os
 import threading
 import time
 
@@ -10,6 +11,8 @@ from backend.config import DELAY_BETWEEN_EMAILS, MAX_CONCURRENT_EMAILS
 from backend.env_utils import BASE_DIR, DATA_DIR
 from backend.smtp_sender import SMTPSender
 
+_SENDER_NAME = os.getenv("SENDER_NAME", "Ram Viswanth")
+_AGENCY_NAME = os.getenv("AGENCY_NAME", "Arrise Digital")
 
 _lead_update_lock = threading.Lock()
 
@@ -122,7 +125,7 @@ def _process_chunk(worker_id, rows):
 
                 start_send = time.perf_counter()
                 subject, body = _parse_email_content(email_content)
-                sender.send(email, subject, body)
+                sender.send(email, subject, body, _SENDER_NAME, _AGENCY_NAME)
                 send_seconds += time.perf_counter() - start_send
 
                 _mark_lead_sent(email)
