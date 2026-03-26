@@ -48,26 +48,42 @@ def _build_prompt(lead: dict) -> str:
     agency_name = DEFAULT_COMPANY_NAME
 
     return (
-        "Write one professional cold email using this exact structure.\n"
+        "Write one professional B2B cold email using this EXACT structure and formatting.\n\n"
         f"Recipient Name: {name}\n"
         f"Client Company: {company}\n"
         f"Solution We Provide: {solution}\n"
         f"Industry: {industry}\n\n"
-        "Structure requirements:\n"
-        "1) First line must be exactly in this format: Subject: <text>\n"
-        "2) Body line 1: Hi <Client Name>,\n"
-        "3) Body line 2: Dear <Client Name>,\n"
-        "4) Respectful opening recognizing their experience in the industry.\n"
-        "5) Problem context about current competition and changing buyer behavior.\n"
-        f"6) Solution intro using {agency_name} and the exact service phrase '{solution}'.\n"
-        "7) Add 2-3 measurable benefits as dash bullets.\n"
-        "8) Add CTA inviting a 15-minute call.\n"
-        f"9) Closing exactly as:\nBest regards,\n{sender_name}\n"
-        "10) Add one optional PS line about urgency/opportunity.\n"
-        "11) Keep body under 150 words (target 120-145 words).\n"
-        "12) Output plain text only, no markdown tables, no emoji.\n"
-        f"13) Must include the exact phrase '{solution}' at least once in subject and once in body.\n"
-        "14) Do not suggest any different primary service."
+        "STRICT FORMATTING RULES:\n"
+        "1) First line: Subject: <subject text>\n"
+        "2) Blank line\n"
+        f"3) Hi {name},\n"
+        "4) Blank line\n"
+        "5) One sentence: respectful opening recognizing their work in the industry.\n"
+        "6) Blank line\n"
+        "7) One sentence: problem context about competition and changing buyer behavior.\n"
+        "8) Blank line\n"
+        f"9) One sentence: introduce {agency_name} and the service '{solution}'.\n"
+        "10) Blank line\n"
+        "11) Three bullet points, each on its OWN LINE starting with '- ':\n"
+        "- Benefit one\n"
+        "- Benefit two\n"
+        "- Benefit three\n"
+        "12) Blank line\n"
+        "13) One sentence CTA: invite a 15-minute call.\n"
+        "14) Blank line\n"
+        "15) Exactly:\n"
+        "Best regards,\n"
+        f"{sender_name}\n"
+        "16) Blank line\n"
+        f"17) P.S. One sentence about urgency for {industry} businesses.\n\n"
+        "RULES:\n"
+        "- Bullet points MUST be on separate lines, never inline\n"
+        "- Signature MUST be two lines: 'Best regards,' then name on next line\n"
+        "- One blank line between every paragraph\n"
+        "- Plain text only, no markdown, no emoji, no tables\n"
+        f"- Use the phrase '{solution}' at least once in subject and once in body\n"
+        "- Keep body under 150 words\n"
+        "- Do not combine bullet points into one line"
     )
 
 
@@ -126,6 +142,64 @@ def _generate_with_ollama(prompt: str) -> tuple[str, str]:
     return "", " | ".join(errors)
 
 
+def _format_email(text: str, sender_name: str) -> str:
+    """
+    Auto-fix formatter — enforces:
+    - Vertical bullet points (never inline)
+    - Blank lines between paragraphs
+    - Two-line signature: 'Best regards,\\n{name}'
+    - Clean spacing throughout
+    """
+    if not text:
+        return text
+
+    # 1. Fix inline bullets: "- A - B - C" → separate lines
+    # Split lines that contain multiple "- " patterns into individual lines
+    fixed_lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        # Detect inline bullets: line has 2+ occurrences of " - " pattern
+        if stripped.count(" - ") >= 1 and stripped.startswith("- "):
+            parts = re.split(r"\s{1,3}-\s", stripped)
+            for i, part in enumerate(parts):
+                part = part.strip()
+                if part:
+                    fixed_lines.append(f"- {part}" if i > 0 else f"- {part.lstrip('- ')}")
+        else:
+            fixed_lines.append(line)
+
+    text = "\n".join(fixed_lines)
+
+    # 2. Fix signature: "Best regards, Name" or "Best regards,Name" → two lines
+    text = re.sub(
+        r"Best regards,\s*" + re.escape(sender_name),
+        f"Best regards,\n{sender_name}",
+        text,
+        flags=re.IGNORECASE,
+    )
+    # Also fix generic "Best regards, <anything>" on one line
+    text = re.sub(
+        r"(Best regards,)\s+([A-Z][a-zA-Z ]+)$",
+        r"\1\n\2",
+        text,
+        flags=re.MULTILINE,
+    )
+
+    # 3. Ensure blank line before bullet blocks
+    text = re.sub(r"([^\n])\n(- )", r"\1\n\n\2", text)
+
+    # 4. Ensure blank line after bullet blocks
+    text = re.sub(r"(- [^\n]+)\n([^-\n])", r"\1\n\n\2", text)
+
+    # 5. Ensure blank line before "Best regards"
+    text = re.sub(r"([^\n])\n(Best regards)", r"\1\n\n\2", text, flags=re.IGNORECASE)
+
+    # 6. Collapse 3+ blank lines into 2
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    return text.strip()
+
+
 def _normalize_email(raw_text: str, lead: dict) -> str:
     name = _lead_value(lead, "name", "there")
     solution = _lead_value(lead, "niche", "digital growth")
@@ -158,7 +232,7 @@ def _normalize_email(raw_text: str, lead: dict) -> str:
     if not _structure_alignment_ok(final_text, name, industry):
         return _detailed_fallback(lead)
 
-    return final_text
+    return _format_email(final_text, DEFAULT_SENDER_NAME)
 
 
 def _detailed_fallback(lead: dict) -> str:
@@ -171,9 +245,8 @@ def _detailed_fallback(lead: dict) -> str:
     agency_name = DEFAULT_COMPANY_NAME
 
     fallback = (
-        f"Subject: {solution} strategy to grow {industry} lead flow\n"
+        f"Subject: {solution} strategy to grow {industry} lead flow\n\n"
         f"Hi {name},\n\n"
-        f"Dear {name},\n"
         f"As a professional in the {industry} sector, you know how important it is to stay ahead of competitors and maintain steady growth.\n\n"
         f"With competition increasing and buyer behavior shifting online, many {industry} businesses find it difficult to generate consistent qualified leads and maintain visibility.\n\n"
         f"At {agency_name}, we help {industry} businesses improve online growth through {solution} tailored to their market and customer intent.\n\n"
@@ -184,12 +257,12 @@ def _detailed_fallback(lead: dict) -> str:
         f"Best regards,\n{sender_name}\n\n"
         f"P.S. Many businesses in {industry} are already using {solution} to capture more demand. This is a strong time to stay ahead."
     )
-    body = "\n".join(fallback.splitlines()[1:])  # type: ignore
+
+    body = "\n".join(fallback.splitlines()[1:])
     if _word_count(body) > MAX_BODY_WORDS:
-        trimmed_ps = (
-            f"Subject: {solution} strategy to grow {industry} lead flow\n"
+        fallback = (
+            f"Subject: {solution} strategy to grow {industry} lead flow\n\n"
             f"Hi {name},\n\n"
-            f"Dear {name},\n"
             f"As a professional in the {industry} sector, you know steady growth depends on staying visible while competitors move fast.\n\n"
             f"Many {industry} businesses now struggle with rising competition, shifting buyer behavior, and inconsistent digital lead flow.\n\n"
             f"At {agency_name}, we help businesses like {company} grow through {solution} with focused execution.\n\n"
@@ -199,8 +272,8 @@ def _detailed_fallback(lead: dict) -> str:
             f"Would you be open to a quick 15-minute call to explore how {solution} can help {company} grow?\n\n"
             f"Best regards,\n{sender_name}"
         )
-        return _ascii_safe(trimmed_ps)
-    return _ascii_safe(fallback)
+
+    return _format_email(_ascii_safe(fallback), sender_name)
 
 
 def _solution_alignment_ok(email_text: str, solution: str) -> bool:
@@ -228,10 +301,7 @@ def _structure_alignment_ok(email_text: str, name: str, industry: str) -> bool:
 
     lowered = "\n".join(lines)
     expected_hi = f"hi {name.lower()}".strip()
-    expected_dear = f"dear {name.lower()}".strip()
     if expected_hi not in lowered:
-        return False
-    if expected_dear not in lowered:
         return False
     if "best regards" not in lowered:
         return False
