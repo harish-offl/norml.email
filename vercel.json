@@ -1,14 +1,14 @@
 {
   "version": 2,
-  "builds": [
-    { "src": "api/*.js", "use": "@vercel/node" },
-    { "src": "public/**", "use": "@vercel/static" }
-  ],
-  "routes": [
-    { "src": "/api/upload-leads",    "dest": "/api/upload-leads.js" },
-    { "src": "/api/send-emails",     "dest": "/api/send-emails.js" },
-    { "src": "/api/campaign-status", "dest": "/api/campaign-status.js" },
-    { "src": "/styles.css",          "dest": "/public/styles.css" },
-    { "src": "/(.*)",                "dest": "/public/index.html" }
+  "functions": {
+    "api/upload-leads.js":    { "runtime": "nodejs24.x" },
+    "api/send-emails.js":     { "runtime": "nodejs24.x" },
+    "api/campaign-status.js": { "runtime": "nodejs24.x" }
+  },
+  "rewrites": [
+    { "source": "/api/upload-leads",    "destination": "/api/upload-leads.js" },
+    { "source": "/api/send-emails",     "destination": "/api/send-emails.js" },
+    { "source": "/api/campaign-status", "destination": "/api/campaign-status.js" },
+    { "source": "/((?!api/).*)",        "destination": "/public/index.html" }
   ]
 }
