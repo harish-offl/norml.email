@@ -113,7 +113,11 @@
           <div class="actions">
             <button class="btn-primary" id="uploadBtn" disabled>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/></svg>
-              Upload &amp; Send Emails
+              Upload Leads
+            </button>
+            <button class="btn-orange" id="sendBtn" disabled>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              Send Emails
             </button>
             <button class="btn-ghost" id="refreshLeads">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
@@ -280,46 +284,21 @@
       renderButtons();renderFile();
     }
 
-    // ── upload & send ──
-    async function upload(){
+    // ── upload (parse file only) ──
+    async function uploadFile(){
       if(!S.file){setNotice("error","Choose a file first.");return}
       E.uploadBtn.disabled=true;E.uploadBtn.textContent="Parsing…";
-      setNotice("info","Step 1/2 — Parsing file…");
-
+      setNotice("info","Parsing file…");
       try{
-        // Step 1: upload & parse file
         const fd=new FormData();fd.append("file",S.file);
         const r1=await fetch("/api/upload-leads",{method:"POST",body:fd});
         const d1=await r1.json();
         if(!r1.ok)throw new Error(d1.error||"Upload failed");
         if(!d1.leads||!d1.leads.length)throw new Error("No valid leads found in file.");
-
         S.leads=d1.leads;
-        setNotice("info",`Step 2/2 — Sending emails to ${d1.leads.length} leads…`);
-        E.uploadBtn.textContent="Sending…";
-
-        // Step 2: send emails
-        const r2=await fetch("/api/send-emails",{
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({leads:d1.leads})
-        });
-        const d2=await r2.json();
-        if(!r2.ok)throw new Error(d2.error||"Email sending failed");
-
-        // Step 3: update campaign status
-        await fetch("/api/campaign-status",{
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({total:d2.total,sent:d2.sent,failed:d2.failed,skipped:d2.skipped})
-        });
-
-        // Update leads with send status
-        S.leads=d2.results||d1.leads;
-        S.lastResult=d2;
-        setNotice("success",`Done! Sent: ${d2.sent} ✓  Skipped: ${d2.skipped}  Failed: ${d2.failed}`);
-        renderSummary(d2);renderLeads();renderStats(d2);
-        setView("monitorPanel");renderMonitor(d2);
+        setNotice("success",`Parsed ${d1.leads.length} leads. Click "Send Emails" to start sending.`);
+        renderLeads();
+        if(E.sendBtn)E.sendBtn.disabled=false;
       }catch(e){
         setNotice("error",e.message||"Upload failed.");
       }finally{
@@ -328,10 +307,44 @@
       }
     }
 
+    // ── send emails (uses already-parsed leads) ──
+    async function sendEmails(){
+      if(!S.leads||!S.leads.length){setNotice("error","Upload a file first to parse leads.");return}
+      E.sendBtn.disabled=true;E.sendBtn.textContent="Sending…";
+      setNotice("info",`Sending emails to ${S.leads.length} leads…`);
+      try{
+        const r2=await fetch("/api/send-emails",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({leads:S.leads})
+        });
+        const d2=await r2.json();
+        if(!r2.ok)throw new Error(d2.error||"Email sending failed");
+        await fetch("/api/campaign-status",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({total:d2.total,sent:d2.sent,failed:d2.failed,skipped:d2.skipped})
+        });
+        S.leads=d2.results||S.leads;
+        S.lastResult=d2;
+        setNotice("success",`Done! Sent: ${d2.sent} ✓  Skipped: ${d2.skipped}  Failed: ${d2.failed}`);
+        renderSummary(d2);renderLeads();renderStats(d2);
+        setView("monitorPanel");renderMonitor(d2);
+      }catch(e){
+        setNotice("error",e.message||"Sending failed.");
+      }finally{
+        renderButtons();
+      }
+    }
+
     // ── render functions ──
     function renderNotice(){if(!E.notice)return;E.notice.className=`notice ${S.notice.type}`;E.notice.innerHTML=`<strong>System</strong><span>${esc(S.notice.text)}</span>`}
     function renderFile(){if(!E.fileName)return;if(!S.file){E.fileName.textContent="No file selected yet";E.fileMeta.textContent="Choose a file to unlock upload & send.";E.uploadChip.textContent="Ready"}else{E.fileName.textContent=S.file.name;E.fileMeta.textContent=`${fmtSize(S.file.size)} — ready to send`;E.uploadChip.textContent="File staged"}}
-    function renderButtons(){if(E.uploadBtn){E.uploadBtn.disabled=!S.file;E.uploadBtn.textContent="Upload & Send Emails"}if(E.clearFile)E.clearFile.disabled=!S.file}
+    function renderButtons(){
+      if(E.uploadBtn){E.uploadBtn.disabled=!S.file;E.uploadBtn.textContent="Upload Leads";}
+      if(E.sendBtn){E.sendBtn.disabled=!S.leads||!S.leads.length;E.sendBtn.textContent="Send Emails";}
+      if(E.clearFile)E.clearFile.disabled=!S.file;
+    }
     function renderSummary(d){
       if(E.sumSent)E.sumSent.textContent=d.sent||0;
       if(E.sumSkipped)E.sumSkipped.textContent=d.skipped||0;
@@ -389,7 +402,8 @@
 
     // ── init ──
     function bind(){
-      E.uploadBtn.onclick=upload;
+      E.uploadBtn.onclick=uploadFile;
+      E.sendBtn.onclick=sendEmails;
       E.clearFile.onclick=()=>{S.file=null;E.fileInput.value="";renderFile();renderButtons()};
       E.fileInput.onchange=e=>setFile(e.target.files[0]||null);
       E.refreshAll.onclick=()=>{setNotice("info","Refreshed.");renderChecks()};
@@ -414,7 +428,7 @@
         refreshAll:$("refreshAll"),topChips:$("topChips"),sidebarNav:$("sidebarNav"),sidebarToggle:$("sidebarToggle"),
         notice:$("notice"),uploadChip:$("uploadChip"),drop:$("drop"),fileInput:$("fileInput"),
         fileName:$("fileName"),fileMeta:$("fileMeta"),clearFile:$("clearFile"),
-        uploadBtn:$("uploadBtn"),refreshLeads:$("refreshLeads"),
+        uploadBtn:$("uploadBtn"),sendBtn:$("sendBtn"),refreshLeads:$("refreshLeads"),
         sumSent:$("sumSent"),sumSkipped:$("sumSkipped"),sumFailed:$("sumFailed"),uploadNote:$("uploadNote"),
         stTotal:$("stTotal"),stPending:$("stPending"),stSent:$("stSent"),stAttention:$("stAttention"),
         stTotalNote:$("stTotalNote"),stPendingNote:$("stPendingNote"),stSentNote:$("stSentNote"),stAttentionNote:$("stAttentionNote"),
