@@ -310,8 +310,29 @@
     // ── send emails (uses already-parsed leads) ──
     async function sendEmails(){
       if(!S.leads||!S.leads.length){setNotice("error","Upload a file first to parse leads.");return}
-      E.sendBtn.disabled=true;E.sendBtn.textContent="Sending…";
-      setNotice("info",`Sending emails to ${S.leads.length} leads…`);
+
+      // Prevent double-submit
+      E.sendBtn.disabled=true;
+      E.uploadBtn.disabled=true;
+      const total=S.leads.length;
+
+      // Show live progress in monitor panel
+      setView("monitorPanel");
+      if(E.statusPill){E.statusPill.className="badge-status chip-run";E.statusPill.textContent="sending";}
+      if(E.progressPct)E.progressPct.textContent="0%";
+      if(E.progressLabel)E.progressLabel.textContent=`Preparing to send ${total} emails…`;
+      if(E.progressCount)E.progressCount.textContent=`0 / ${total} sent`;
+      if(E.fill)E.fill.style.width="0%";
+      if(E.mTotal)E.mTotal.textContent=total;
+      if(E.mSent)E.mSent.textContent=0;
+      if(E.mFailed)E.mFailed.textContent=0;
+      if(E.mSkipped)E.mSkipped.textContent=0;
+      if(E.campaignMessage)E.campaignMessage.textContent=`Sending ${total} emails with concurrency…`;
+      if(E.topChips)E.topChips.innerHTML=`<span class="chip chip-run"><strong>Status</strong> sending</span><span class="chip"><strong>Total</strong> ${total}</span>`;
+
+      setNotice("info",`Sending emails to ${total} leads — please wait…`);
+
+      const batchStart=Date.now();
       try{
         const r2=await fetch("/api/send-emails",{
           method:"POST",
@@ -320,18 +341,24 @@
         });
         const d2=await r2.json();
         if(!r2.ok)throw new Error(d2.error||"Email sending failed");
+
+        // Update campaign status
         await fetch("/api/campaign-status",{
           method:"POST",
           headers:{"Content-Type":"application/json"},
           body:JSON.stringify({total:d2.total,sent:d2.sent,failed:d2.failed,skipped:d2.skipped})
         });
+
         S.leads=d2.results||S.leads;
         S.lastResult=d2;
-        setNotice("success",`Done! Sent: ${d2.sent} ✓  Skipped: ${d2.skipped}  Failed: ${d2.failed}`);
-        renderSummary(d2);renderLeads();renderStats(d2);
-        setView("monitorPanel");renderMonitor(d2);
+        const elapsed=d2.elapsed_seconds||((Date.now()-batchStart)/1000).toFixed(1);
+        const perLead=d2.total>0?(elapsed/d2.total).toFixed(1):0;
+
+        setNotice("success",`Done! ✓ Sent: ${d2.sent}  Skipped: ${d2.skipped}  Failed: ${d2.failed}  (${elapsed}s total, ~${perLead}s/lead)`);
+        renderSummary(d2);renderLeads();renderStats(d2);renderMonitor(d2);
       }catch(e){
         setNotice("error",e.message||"Sending failed.");
+        if(E.statusPill){E.statusPill.className="badge-status chip-bad";E.statusPill.textContent="error";}
       }finally{
         renderButtons();
       }
