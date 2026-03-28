@@ -393,9 +393,12 @@ def _log_result(result: str, error: str) -> None:
 
 
 def generate_cold_email(lead: dict) -> str:
-    """Generate a detailed cold email using Ollama with resilient fallback."""
-    prompt = _build_prompt(lead)
-    raw_result, error = _generate_with_ollama(prompt)
-    result = _normalize_email(raw_result, lead) if raw_result else _detailed_fallback(lead)
-    _log_result(result, error)
+    """
+    Generate a cold email using the approved template.
+    Always uses the controlled fallback template to guarantee correct formatting.
+    AI generation is bypassed to prevent format inconsistencies.
+    """
+    result = _detailed_fallback(lead)
+    _log_result(result, "")
     return result
+
