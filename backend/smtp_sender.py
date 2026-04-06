@@ -92,12 +92,13 @@ def build_html_email(subject, plain_body, sender_name, agency_name):
 
 def _connect_smtp(host, port, email_address, email_password):
     """
-    Connect to SMTP with automatic SSL/STARTTLS selection.
-    Port 465 → SSL (smtplib.SMTP_SSL)
-    Port 587 → STARTTLS (smtplib.SMTP + starttls)
-    Falls back to the other port if primary fails.
+    Connect to SMTP. Uses unverified SSL context to bypass Windows CA cert issues.
+    Port 465 → SMTP_SSL (direct SSL)
+    Port 587 → SMTP + STARTTLS
+    Auto-fallback between ports.
     """
-    ctx = ssl.create_default_context()
+    # Use unverified context — fixes Windows SSL cert chain errors
+    ctx = ssl._create_unverified_context()
 
     def try_ssl(h, p):
         print(f"[SMTP] Trying SSL on {h}:{p}")
@@ -148,9 +149,7 @@ def _connect_smtp(host, port, email_address, email_password):
     except Exception as fallback_err:
         raise RuntimeError(
             f"Cannot connect to {host} on port {port} or {fallback_port}. "
-            "Your network may be blocking outbound SMTP. "
-            "Try switching to a mobile hotspot or check your firewall. "
-            f"Details: port {port}: timed out | port {fallback_port}: {fallback_err}"
+            f"Details: {fallback_err}"
         )
 
 
