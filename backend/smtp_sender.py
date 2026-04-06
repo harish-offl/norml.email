@@ -93,6 +93,14 @@ class SMTPSender:
         if self.server is not None:
             return
 
+        # Re-read config fresh every time — avoids stale module-level values
+        from backend.env_utils import load_project_env
+        load_project_env(override=True)
+
+        import os
+        smtp_host = os.getenv("SMTP_SERVER", "smtp.gmail.com").strip()
+        smtp_port = int(os.getenv("SMTP_PORT", "587"))
+
         # Validate config before attempting connection
         validate_smtp_config()
 
@@ -100,14 +108,14 @@ class SMTPSender:
         self.email_address = email_address
 
         # Log connection attempt (never log the password)
-        print(f"[SMTP] Connecting to {SMTP_SERVER}:{SMTP_PORT} as {email_address}")
+        print(f"[SMTP] Connecting to {smtp_host}:{smtp_port} as {email_address}")
 
         try:
-            self.server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=30)
+            self.server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
             self.server.ehlo()
 
             # STARTTLS required for port 587
-            if SMTP_PORT == 587:
+            if smtp_port == 587:
                 self.server.starttls()
                 self.server.ehlo()
 
@@ -125,11 +133,11 @@ class SMTPSender:
             err_str = str(e)
             if "10060" in err_str or "timed out" in err_str.lower():
                 raise RuntimeError(
-                    f"Connection to {SMTP_SERVER}:{SMTP_PORT} timed out (error 10060). "
+                    f"Connection to {smtp_host}:{smtp_port} timed out (error 10060). "
                     "Your network or firewall is blocking outbound port 587. "
                     "Try: disable VPN, check Windows Firewall, or test on a mobile hotspot."
                 )
-            raise RuntimeError(f"SMTP connection failed ({SMTP_SERVER}:{SMTP_PORT}): {e}")
+            raise RuntimeError(f"SMTP connection failed ({smtp_host}:{smtp_port}): {e}")
         except Exception as e:
             self.server = None
             raise RuntimeError(f"SMTP error: {e}")
