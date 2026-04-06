@@ -1,4 +1,5 @@
 import smtplib
+import socket
 import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -9,6 +10,7 @@ from backend.config import (
     SMTP_MAX_RETRIES,
     SMTP_RETRY_DELAY_SECONDS,
     get_email_credentials,
+    validate_smtp_config,
 )
 
 
@@ -22,7 +24,6 @@ def build_html_email(subject, plain_body, sender_name, agency_name):
         if stripped.startswith("- "):
             bullet_buffer.append(stripped[2:])
         else:
-            # Flush bullet buffer first
             if bullet_buffer:
                 items = "".join(f"<li>{b}</li>" for b in bullet_buffer)
                 sections.append(
@@ -81,26 +82,57 @@ def build_html_email(subject, plain_body, sender_name, agency_name):
 </html>"""
 
 
-
 class SMTPSender:
     """Reusable SMTP connection for faster multi-email sending."""
 
     def __init__(self):
-        self.server = None
+        self.server       = None
         self.email_address = None
 
     def connect(self):
         if self.server is not None:
             return
+
+        # Validate config before attempting connection
+        validate_smtp_config()
+
         email_address, email_password = get_email_credentials()
-        if not email_address or not email_password:
-            raise RuntimeError("Missing EMAIL_ADDRESS or EMAIL_PASSWORD in environment.")
         self.email_address = email_address
-        self.server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=30)
-        self.server.ehlo()
-        self.server.starttls()
-        self.server.ehlo()
-        self.server.login(email_address, email_password)
+
+        # Log connection attempt (never log the password)
+        print(f"[SMTP] Connecting to {SMTP_SERVER}:{SMTP_PORT} as {email_address}")
+
+        try:
+            self.server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=30)
+            self.server.ehlo()
+
+            # STARTTLS required for port 587
+            if SMTP_PORT == 587:
+                self.server.starttls()
+                self.server.ehlo()
+
+            self.server.login(email_address, email_password)
+            print(f"[SMTP] ✓ Authenticated successfully as {email_address}")
+
+        except smtplib.SMTPAuthenticationError:
+            self.server = None
+            raise RuntimeError(
+                "Gmail authentication failed. Use a Gmail App Password, not your regular password. "
+                "Generate one at: myaccount.google.com → Security → App Passwords"
+            )
+        except (smtplib.SMTPConnectError, TimeoutError, socket.timeout, OSError) as e:
+            self.server = None
+            err_str = str(e)
+            if "10060" in err_str or "timed out" in err_str.lower():
+                raise RuntimeError(
+                    f"Connection to {SMTP_SERVER}:{SMTP_PORT} timed out (error 10060). "
+                    "Your network or firewall is blocking outbound port 587. "
+                    "Try: disable VPN, check Windows Firewall, or test on a mobile hotspot."
+                )
+            raise RuntimeError(f"SMTP connection failed ({SMTP_SERVER}:{SMTP_PORT}): {e}")
+        except Exception as e:
+            self.server = None
+            raise RuntimeError(f"SMTP error: {e}")
 
     def close(self):
         if self.server is None:
@@ -110,30 +142,36 @@ class SMTPSender:
         except Exception:
             pass
         finally:
-            self.server = None
+            self.server       = None
             self.email_address = None
 
     def send(self, to_email, subject, body, sender_name="", agency_name=""):
-        # Build multipart email with plain text + HTML
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["To"] = to_email
+        msg["To"]      = to_email
 
         html_body = build_html_email(subject, body, sender_name, agency_name)
-        msg.attach(MIMEText(body, "plain"))
+        msg.attach(MIMEText(body,      "plain"))
         msg.attach(MIMEText(html_body, "html"))
 
-        attempts = SMTP_MAX_RETRIES + 1
+        attempts   = SMTP_MAX_RETRIES + 1
         last_error = None
+
         for attempt in range(attempts):
             try:
                 self.connect()
                 if "From" in msg:
-                    msg.replace_header("From", f'"{sender_name}" <{self.email_address}>' if sender_name else self.email_address)
+                    msg.replace_header(
+                        "From",
+                        f'"{sender_name}" <{self.email_address}>' if sender_name else self.email_address
+                    )
                 else:
-                    msg["From"] = f'"{sender_name}" <{self.email_address}>' if sender_name else self.email_address
+                    msg["From"] = (
+                        f'"{sender_name}" <{self.email_address}>' if sender_name else self.email_address
+                    )
                 self.server.sendmail(self.email_address, to_email, msg.as_string())
                 return
+
             except Exception as exc:
                 last_error = exc
                 self.close()

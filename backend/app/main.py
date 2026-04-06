@@ -27,7 +27,7 @@ from backend.app.crud import (
 from backend.app.database import initialize_database
 from backend.app.schemas import LeadCreate
 from backend.campaign_runner import run_campaign
-from backend.config import get_missing_smtp_settings
+from backend.config import get_missing_smtp_settings, smtp_preflight_test
 from backend.env_utils import BASE_DIR
 
 
@@ -195,6 +195,12 @@ def start_campaign():
             ),
             400,
         )
+
+    # ── SMTP preflight test before starting campaign ──────────────────────
+    try:
+        smtp_preflight_test()
+    except RuntimeError as exc:
+        return _error(str(exc), 400)
 
     started, campaign = start_campaign_tracking(total=pending_leads)
     if not started:
