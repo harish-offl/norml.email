@@ -196,11 +196,8 @@ def start_campaign():
             400,
         )
 
-    # ── SMTP preflight test before starting campaign ──────────────────────
-    try:
-        smtp_preflight_test()
-    except RuntimeError as exc:
-        return _error(str(exc), 400)
+    # NOTE: preflight removed — it blocks campaign on restricted networks.
+    # SMTP errors are caught per-lead and reported in campaign status.
 
     started, campaign = start_campaign_tracking(total=pending_leads)
     if not started:

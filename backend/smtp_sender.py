@@ -1,17 +1,25 @@
 import smtplib
 import socket
+import ssl
 import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from backend.config import (
-    SMTP_SERVER,
-    SMTP_PORT,
     SMTP_MAX_RETRIES,
     SMTP_RETRY_DELAY_SECONDS,
     get_email_credentials,
-    validate_smtp_config,
 )
+
+
+def _get_smtp_config():
+    """Read SMTP config fresh every time — avoids stale module-level values."""
+    from backend.env_utils import load_project_env
+    import os
+    load_project_env(override=True)
+    host = os.getenv("SMTP_SERVER", "smtp.gmail.com").strip()
+    port = int(os.getenv("SMTP_PORT", "465"))
+    return host, port
 
 
 def build_html_email(subject, plain_body, sender_name, agency_name):
@@ -82,65 +90,92 @@ def build_html_email(subject, plain_body, sender_name, agency_name):
 </html>"""
 
 
+def _connect_smtp(host, port, email_address, email_password):
+    """
+    Connect to SMTP with automatic SSL/STARTTLS selection.
+    Port 465 → SSL (smtplib.SMTP_SSL)
+    Port 587 → STARTTLS (smtplib.SMTP + starttls)
+    Falls back to the other port if primary fails.
+    """
+    ctx = ssl.create_default_context()
+
+    def try_ssl(h, p):
+        print(f"[SMTP] Trying SSL on {h}:{p}")
+        server = smtplib.SMTP_SSL(h, p, timeout=30, context=ctx)
+        server.ehlo()
+        server.login(email_address, email_password)
+        print(f"[SMTP] ✓ Connected via SSL as {email_address}")
+        return server
+
+    def try_starttls(h, p):
+        print(f"[SMTP] Trying STARTTLS on {h}:{p}")
+        server = smtplib.SMTP(h, p, timeout=30)
+        server.ehlo()
+        server.starttls(context=ctx)
+        server.ehlo()
+        server.login(email_address, email_password)
+        print(f"[SMTP] ✓ Connected via STARTTLS as {email_address}")
+        return server
+
+    # Primary attempt
+    try:
+        if port == 465:
+            return try_ssl(host, port)
+        else:
+            return try_starttls(host, port)
+    except smtplib.SMTPAuthenticationError:
+        raise RuntimeError(
+            "Gmail authentication failed. "
+            "Use a Gmail App Password (not your regular password). "
+            "Generate one at: myaccount.google.com → Security → App Passwords"
+        )
+    except Exception as primary_err:
+        print(f"[SMTP] Primary port {port} failed: {primary_err}. Trying fallback...")
+
+    # Fallback to the other port
+    fallback_port = 587 if port == 465 else 465
+    try:
+        if fallback_port == 465:
+            return try_ssl(host, fallback_port)
+        else:
+            return try_starttls(host, fallback_port)
+    except smtplib.SMTPAuthenticationError:
+        raise RuntimeError(
+            "Gmail authentication failed. "
+            "Use a Gmail App Password (not your regular password). "
+            "Generate one at: myaccount.google.com → Security → App Passwords"
+        )
+    except Exception as fallback_err:
+        raise RuntimeError(
+            f"Cannot connect to {host} on port {port} or {fallback_port}. "
+            "Your network may be blocking outbound SMTP. "
+            "Try switching to a mobile hotspot or check your firewall. "
+            f"Details: port {port}: timed out | port {fallback_port}: {fallback_err}"
+        )
+
+
 class SMTPSender:
     """Reusable SMTP connection for faster multi-email sending."""
 
     def __init__(self):
-        self.server       = None
+        self.server        = None
         self.email_address = None
 
     def connect(self):
         if self.server is not None:
             return
 
-        # Re-read config fresh every time — avoids stale module-level values
-        from backend.env_utils import load_project_env
-        load_project_env(override=True)
-
-        import os
-        smtp_host = os.getenv("SMTP_SERVER", "smtp.gmail.com").strip()
-        smtp_port = int(os.getenv("SMTP_PORT", "587"))
-
-        # Validate config before attempting connection
-        validate_smtp_config()
-
+        host, port = _get_smtp_config()
         email_address, email_password = get_email_credentials()
-        self.email_address = email_address
 
-        # Log connection attempt (never log the password)
-        print(f"[SMTP] Connecting to {smtp_host}:{smtp_port} as {email_address}")
-
-        try:
-            self.server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
-            self.server.ehlo()
-
-            # STARTTLS required for port 587
-            if smtp_port == 587:
-                self.server.starttls()
-                self.server.ehlo()
-
-            self.server.login(email_address, email_password)
-            print(f"[SMTP] ✓ Authenticated successfully as {email_address}")
-
-        except smtplib.SMTPAuthenticationError:
-            self.server = None
+        if not email_address or not email_password:
             raise RuntimeError(
-                "Gmail authentication failed. Use a Gmail App Password, not your regular password. "
-                "Generate one at: myaccount.google.com → Security → App Passwords"
+                "EMAIL_ADDRESS or EMAIL_PASSWORD not set. "
+                "Check your .env file."
             )
-        except (smtplib.SMTPConnectError, TimeoutError, socket.timeout, OSError) as e:
-            self.server = None
-            err_str = str(e)
-            if "10060" in err_str or "timed out" in err_str.lower():
-                raise RuntimeError(
-                    f"Connection to {smtp_host}:{smtp_port} timed out (error 10060). "
-                    "Your network or firewall is blocking outbound port 587. "
-                    "Try: disable VPN, check Windows Firewall, or test on a mobile hotspot."
-                )
-            raise RuntimeError(f"SMTP connection failed ({smtp_host}:{smtp_port}): {e}")
-        except Exception as e:
-            self.server = None
-            raise RuntimeError(f"SMTP error: {e}")
+
+        self.email_address = email_address
+        self.server = _connect_smtp(host, port, email_address, email_password)
 
     def close(self):
         if self.server is None:
@@ -150,7 +185,7 @@ class SMTPSender:
         except Exception:
             pass
         finally:
-            self.server       = None
+            self.server        = None
             self.email_address = None
 
     def send(self, to_email, subject, body, sender_name="", agency_name=""):
@@ -168,18 +203,16 @@ class SMTPSender:
         for attempt in range(attempts):
             try:
                 self.connect()
+                from_header = (
+                    f'"{sender_name}" <{self.email_address}>'
+                    if sender_name else self.email_address
+                )
                 if "From" in msg:
-                    msg.replace_header(
-                        "From",
-                        f'"{sender_name}" <{self.email_address}>' if sender_name else self.email_address
-                    )
+                    msg.replace_header("From", from_header)
                 else:
-                    msg["From"] = (
-                        f'"{sender_name}" <{self.email_address}>' if sender_name else self.email_address
-                    )
+                    msg["From"] = from_header
                 self.server.sendmail(self.email_address, to_email, msg.as_string())
                 return
-
             except Exception as exc:
                 last_error = exc
                 self.close()
