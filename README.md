@@ -1,225 +1,229 @@
-﻿# AI Email Automation (Django + Ollama)
+﻿# NORML Agency — Email Automation Command Deck
 
-This project uploads client leads, generates personalized cold emails with Ollama, and sends them through SMTP.
+A full-stack cold email automation platform built for B2B outreach. Upload a CSV of leads, generate personalised emails per industry, and send them via Gmail SMTP — all from a dark glassmorphic dashboard.
 
-It is built with Django + Django REST Framework and includes a simple frontend page for uploading CSV files and starting campaigns.
+**Live deployment:** Vercel (Node.js serverless)
+**Local backend:** Python + FastAPI + Uvicorn
 
-## Current Features
+---
 
-- Django API for lead ingestion and campaign start.
-- CSV upload with header normalization and alias mapping.
-- Lead replacement mode on upload to avoid stale recipients.
-- Solution-driven email generation (based on `niche` / `interest` / `solution` field).
-- Structured cold email format validation.
-- Ollama generation via HTTP API first, CLI fallback second.
-- Parallel sending with reusable SMTP connections for faster throughput.
+## Features
 
-## Architecture
+- Dark glassmorphic dashboard (HTML + CSS, no framework)
+- CSV / Excel lead upload with header normalization
+- Industry-specific randomised bullet points — no two leads receive the same set
+- Approved B2B cold email template with P.S. line
+- Gmail SMTP sending via port 465 SSL with auto-fallback to 587
+- Real-time campaign monitor — leads move from Pending → Sent live
+- Leads Workspace with search and status filters
+- Vercel serverless API (`/api/upload-leads`, `/api/send-emails`, `/api/campaign-status`)
+- Python FastAPI backend for local use with Ollama AI generation
 
-- `frontend/` -> static upload/start dashboard.
-- `backend/app/main.py` -> Django routes and API views.
-- `backend/campaign_runner.py` -> concurrent generation + sending workers.
-- `backend/ai_engine.py` -> Ollama prompt + output validation + fallback template.
-- `backend/smtp_sender.py` -> SMTP sender with retries and connection reuse.
-- `backend/env_utils.py` -> .env loader and project paths.
-- `data/leads.db` -> SQLite lead storage (default path; configure via `DATABASE_URL`).
+---
 
-## Project Layout
+## Project Structure
 
-- `backend/` — Django app code, campaign engine, SMTP + Ollama logic, env loader, templates.
-- `frontend/` — static React-in-HTML dashboard for upload/start.
-- `tests/` — pytest suites for generation, runner, and campaign start.
-- `data/` — sample lead data (`leads.csv`) and SQLite store (`leads.db` by default).
-- `.env` — environment configuration (root, gitignored).
+```
+/
+├── api/                        # Vercel serverless functions
+│   ├── upload-leads.js         # Parse CSV/XLSX, return leads[]
+│   ├── send-emails.js          # Send emails via Gmail SMTP
+│   └── campaign-status.js      # Campaign stats GET/POST
+├── public/                     # Vercel frontend
+│   ├── index.html              # Dashboard UI
+│   └── styles.css              # Dark glassmorphic styles
+├── frontend/                   # Local Python server frontend
+│   ├── index.html
+│   └── styles.css
+├── backend/                    # Python FastAPI backend
+│   ├── app/
+│   │   ├── main.py             # FastAPI routes
+│   │   ├── crud.py             # DB operations
+│   │   ├── models.py           # SQLAlchemy models
+│   │   ├── schemas.py          # Pydantic schemas
+│   │   ├── database.py         # SQLite init
+│   │   └── campaign_status.py  # In-memory campaign state
+│   ├── ai_engine.py            # Email generation + bullet library
+│   ├── campaign_runner.py      # Parallel SMTP workers
+│   ├── smtp_sender.py          # SMTP connection + HTML builder
+│   ├── config.py               # Env config + validation
+│   └── env_utils.py            # .env loader
+├── data/
+│   └── leads.csv               # Sample leads
+├── main.py                     # Entry point (--serve / --migrate)
+├── package.json                # Node.js deps for Vercel
+├── vercel.json                 # Vercel deployment config
+└── .env                        # Local environment variables (gitignored)
+```
 
-## Requirements
+---
 
-- Python 3.12+ (tested with 3.13)
-- Ollama installed and running locally
-- SMTP credentials (for example Gmail app password)
+## Quick Start (Local)
 
-Install dependencies:
+**1. Install Python dependencies**
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Environment Variables
-
-Create `.env` in project root with values like:
+**2. Configure `.env`**
 
 ```env
 SMTP_SERVER=smtp.gmail.com
-SMTP_PORT=587
-EMAIL_ADDRESS=your_sender@gmail.com
+SMTP_PORT=465
+EMAIL_ADDRESS=your@gmail.com
 EMAIL_PASSWORD=your_app_password
-DATABASE_URL=data/leads.db
-
-OLLAMA_MODEL=llama3.2:1b
-OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_REQUEST_TIMEOUT_SECONDS=180
-OLLAMA_KEEP_ALIVE=30m
-OLLAMA_NUM_PREDICT=100
-OLLAMA_TEMPERATURE=0.4
-
+DATABASE_URL=leads.db
+SENDER_NAME=Your Name
+AGENCY_NAME=Your Company Name
 MAX_CONCURRENT_EMAILS=2
 DELAY_BETWEEN_EMAILS=0
 SMTP_MAX_RETRIES=1
-SMTP_RETRY_DELAY_SECONDS=1
-
-MIN_COLD_EMAIL_WORDS=95
-MAX_COLD_EMAIL_WORDS=150
-SENDER_NAME=Your Name
-AGENCY_NAME=Your Company Name
 ```
 
-## Run
+> Gmail requires an **App Password** — generate one at:
+> myaccount.google.com → Security → 2-Step Verification → App Passwords
 
-Run migrations (from the project root):
+**3. Run the server**
 
 ```bash
-python -m backend.main --migrate
+python main.py --serve
 ```
 
-Start server:
+Open **http://localhost:8000**
 
-```bash
-python -m backend.main --serve
-```
+---
 
-Open:
+## CSV Format
 
-- `http://127.0.0.1:8000/` (frontend)
+Upload a CSV with these columns (case-insensitive, aliases supported):
 
-Run campaign from CLI (without API):
+| Column | Aliases |
+|--------|---------|
+| Name | Full Name, Client Name |
+| Email | Email Address |
+| Company | Company Name |
+| Industry | — |
+| Solution | Niche, Interest, Service, Offering |
+| Phone | Phone Number, Mobile |
 
-```bash
-python -m backend.main
-```
-
-## API Endpoints
-
-- `GET /api/leads/` -> list leads
-- `POST /api/leads/` -> create lead
-- `POST /api/leads/upload/` -> upload CSV file
-- `POST /api/campaign/start/` -> start background campaign
-
-### Upload behavior
-
-`POST /api/leads/upload/` accepts multipart file key: `file`
-
-Optional form flags:
-
-- `replace_existing` (default `true`)
-- `require_solution` (default `true`)
-
-If `replace_existing=true`, old leads are deleted before import.
-
-Rows are skipped when:
-
-- email is missing
-- solution field is missing while `require_solution=true`
-
-The response includes:
-
-- `created`
-- `updated`
-- `skipped`
-- `ignored_columns`
-
-## Accepted CSV Headers
-
-Headers are normalized and mapped automatically.
-
-Mapped to `name`:
-
-- `name`, `full name`, `client name`
-
-Mapped to `email`:
-
-- `email`, `email address`
-
-Mapped to `phone`:
-
-- `phone`, `phone number`, `mobile`
-
-Mapped to `company`:
-
-- `company`, `company name`
-
-Mapped to `industry`:
-
-- `industry`
-
-Mapped to solution (`niche`):
-
-- `niche`, `interest`, `solution`, `service`, `services`, `offering`
-
-Example CSV:
+**Example:**
 
 ```csv
-Name,Email,Phone,Company,Industry,Interest
-Annamalai,annamalaiharish54@gmail.com,9363973591,TechNova Solutions,IT Services,App Development
-Ram Viswanath,rviswa60@gmail.com,8056353850,Nair Fashions,Fashion,Social Media Marketing
+Name,Email,Company,Industry,Solution
+Annamalai,annamalai@example.com,TechNova Solutions,IT Services,App Development
+Ram Viswanth,ram@example.com,Nair Fashions,Retail,Social Media Marketing
 ```
 
-## Cold Email Generation Rules
+---
 
-The generator enforces a structured format and falls back to a safe template if Ollama output is invalid.
+## Email Template
 
-Required format:
+Every email follows this exact structure:
 
-1. Subject line as first line: `Subject: ...`
-2. `Hi <Client Name>,`
-3. `Dear <Client Name>,`
-4. Respectful opening tied to industry
-5. Problem context (competition + buyer behavior)
-6. Solution intro using your service phrase
-7. 2-3 dash bullet benefits
-8. CTA with `15-minute call`
-9. Closing with `Best regards,` and sender name
-10. Optional PS line
-
-Validation checks:
-
-- Word count range (`MIN_COLD_EMAIL_WORDS` to `MAX_COLD_EMAIL_WORDS`)
-- Service phrase present in subject and body
-- Required structure elements present
-
-## Performance Tuning
-
-Main throughput controls:
-
-- `MAX_CONCURRENT_EMAILS` -> parallel workers (default recommended: `2`)
-- `DELAY_BETWEEN_EMAILS` -> delay after each send per worker
-- `OLLAMA_NUM_PREDICT` -> generation length/speed tradeoff
-
-Notes:
-
-- Higher concurrency can reduce total time, but too high can slow Ollama on local hardware.
-- SMTP provider limits still apply (Gmail sending limits, throttling, etc.).
-
-## Tests
-
-Run:
-
-```bash
-pytest -q tests/test_ai_engine.py
 ```
+Subject: {Solution} growth strategy for {Company}
+
+Hi {FirstName},
+
+As a professional in the {Industry} sector, you know how important
+it is to stay ahead of competitors and maintain steady growth.
+
+With competition increasing and buyer behavior shifting online, many
+{Industry} businesses find it difficult to generate consistent
+qualified leads and maintain visibility.
+
+At {AgencyName}, we help {Industry} businesses improve online growth
+through {Solution} tailored to their market and customer intent.
+
+- [Industry-specific bullet 1]
+- [Industry-specific bullet 2]
+- [Industry-specific bullet 3]
+
+Would you be open to a quick 15-minute call to explore how {Solution}
+can help {Company} attract more clients?
+
+Best regards,
+{SenderName}
+
+P.S. Many businesses in {Industry} are already using {Solution} to
+capture more demand. This is a strong time to stay ahead.
+```
+
+---
+
+## Industry Bullet Library
+
+The system has a curated bullet library for 13 industries. Each industry has 7 bullets — 3 are picked randomly per lead so no two leads receive the same combination.
+
+**Supported industries:** IT Services, Real Estate, Healthcare, Education, Finance, Retail, Manufacturing, Hospitality, Logistics, Legal, App Development, Digital Marketing, Ecommerce.
+
+To add a new industry, edit `_BULLET_LIBRARY` in `backend/ai_engine.py`.
+
+---
+
+## API Endpoints (Local Python Backend)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/leads/` | List all leads |
+| POST | `/api/leads/` | Create a single lead |
+| POST | `/api/leads/upload/` | Upload CSV file |
+| POST | `/api/campaign/start/` | Start background campaign |
+| GET | `/api/campaign/status/` | Get campaign status |
+
+**Upload options (form fields):**
+- `replace_existing` (default: `true`) — delete old leads before import
+- `require_solution` (default: `true`) — skip rows missing niche/solution
+
+---
+
+## Vercel Deployment
+
+**1. Connect repo to Vercel**
+
+Import `https://github.com/harish-offl/automation---norml` on vercel.com → Framework: **Other**
+
+**2. Set environment variables in Vercel Dashboard → Settings → Environment Variables:**
+
+| Variable | Value |
+|----------|-------|
+| `EMAIL_ADDRESS` | your Gmail address |
+| `EMAIL_PASSWORD` | Gmail App Password |
+| `SMTP_SERVER` | smtp.gmail.com |
+| `SMTP_PORT` | 465 |
+| `SENDER_NAME` | Your Name |
+| `AGENCY_NAME` | Your Agency Name |
+
+**3. Deploy** — Vercel auto-deploys on every push to `main`.
+
+---
+
+## SMTP Notes
+
+- Port **465** (SSL) is used by default — more reliable on restricted networks
+- Auto-fallback to port **587** (STARTTLS) if 465 fails
+- Uses `ssl._create_unverified_context()` to bypass Windows CA cert chain issues
+- Gmail App Password required — regular password will not work
+
+---
 
 ## Troubleshooting
 
-- Campaign sends to old/test lead:
-  - Re-upload with `replace_existing=true`.
-- Upload says `No valid rows found`:
-  - Ensure CSV contains `Email` and `Interest`/`Solution`/`Niche` column.
-- Ollama output not matching structure:
-  - Check `ai_generation.log` for `[OLLAMA_ERROR]` entries.
-- Slow generation:
-  - Reduce `OLLAMA_NUM_PREDICT`, keep `MAX_CONCURRENT_EMAILS=2`, or switch to a smaller model.
+| Problem | Fix |
+|---------|-----|
+| `Connection timed out (10060)` | Network blocking port 465/587 — try mobile hotspot |
+| `Authentication failed` | Use Gmail App Password, not regular password |
+| `No valid rows found` | CSV must have `Email` and `Solution`/`Niche` column |
+| `Campaign failed immediately` | Check `.env` has `EMAIL_ADDRESS` and `EMAIL_PASSWORD` |
+| Leads not updating live | Hard refresh browser (`Ctrl+Shift+R`) |
+| All leads get same bullets | Check `Industry` column is populated in CSV |
 
-## Security Notes
+---
 
-- Do not commit `.env` with real credentials.
-- Use app passwords for SMTP accounts.
-- Keep `ai_generation.log` out of version control (already ignored).
+## Security
+
+- Never commit `.env` with real credentials — it is gitignored
+- Use Gmail App Passwords only
+- `ai_generation.log` is gitignored
+- SQLite `.db` files are gitignored
