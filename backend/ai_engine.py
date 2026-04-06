@@ -1,5 +1,6 @@
 import os
 import re
+import random
 import subprocess
 
 from backend.env_utils import load_project_env
@@ -22,6 +23,173 @@ MIN_BODY_WORDS = int(os.getenv("MIN_COLD_EMAIL_WORDS", "95"))
 MAX_BODY_WORDS = int(os.getenv("MAX_COLD_EMAIL_WORDS", "150"))
 DEFAULT_SENDER_NAME = os.getenv("SENDER_NAME", os.getenv("EMAIL_ADDRESS", "Your Name").split("@")[0] or "Your Name")
 DEFAULT_COMPANY_NAME = os.getenv("AGENCY_NAME", "Your Company Name")
+
+
+# ── Industry-specific bullet point library ───────────────────────────────────
+# Each industry has 6+ bullets. 3 are picked randomly per lead so no two
+# leads in the same industry receive the same combination.
+_BULLET_LIBRARY: dict[str, list[str]] = {
+    "it services": [
+        "Faster project delivery through streamlined digital workflows",
+        "Higher client retention with automated follow-up and onboarding",
+        "Increased inbound leads from decision-makers searching for IT solutions",
+        "Stronger positioning against offshore competitors in local markets",
+        "Reduced sales cycle length with targeted outreach to qualified prospects",
+        "Improved brand credibility through consistent digital presence",
+        "More demo bookings from LinkedIn and search-driven campaigns",
+    ],
+    "real estate": [
+        "More qualified property inquiries from serious buyers and investors",
+        "Faster listing visibility through targeted digital campaigns",
+        "Higher conversion rate from lead to site visit",
+        "Stronger local brand recognition in competitive property markets",
+        "Automated follow-up sequences that keep prospects engaged",
+        "Increased referral traffic from content and social proof strategies",
+        "Better ROI on marketing spend with data-driven targeting",
+    ],
+    "healthcare": [
+        "More patient appointments booked through digital channels",
+        "Stronger trust and credibility with online reputation management",
+        "Increased visibility for specialist services in local search",
+        "Higher patient retention through automated communication workflows",
+        "Reduced no-show rates with timely reminder and engagement campaigns",
+        "Improved referral rates from satisfied patients and partner clinics",
+        "Faster growth in new patient acquisition without increasing ad spend",
+    ],
+    "education": [
+        "Higher student enrollment through targeted digital outreach",
+        "Improved course visibility across search and social platforms",
+        "Stronger parent and student engagement with automated communication",
+        "Increased brand authority as a trusted institution in your region",
+        "Better lead-to-enrollment conversion with nurture campaigns",
+        "More referrals from current students and alumni networks",
+        "Reduced cost per enrollment through optimised digital funnels",
+    ],
+    "finance": [
+        "More qualified leads from high-intent financial service seekers",
+        "Stronger compliance-safe digital presence across key platforms",
+        "Increased trust and credibility with professional content strategies",
+        "Higher conversion from prospect to client with targeted follow-up",
+        "Improved visibility for niche financial products in competitive markets",
+        "Better client retention through value-driven email communication",
+        "Faster pipeline growth without relying solely on referrals",
+    ],
+    "retail": [
+        "Higher foot traffic and online store visits through targeted campaigns",
+        "Improved repeat purchase rate with loyalty-driven email sequences",
+        "Stronger seasonal campaign performance with data-backed targeting",
+        "Increased average order value through personalised product outreach",
+        "Better brand recall in a crowded retail market",
+        "More customer reviews and social proof driving new buyer confidence",
+        "Reduced cart abandonment with automated recovery campaigns",
+    ],
+    "manufacturing": [
+        "More B2B leads from procurement managers and supply chain decision-makers",
+        "Stronger industry positioning through thought leadership content",
+        "Increased RFQ volume from targeted outreach to qualified buyers",
+        "Better visibility at trade shows and industry directories online",
+        "Improved distributor and partner acquisition through digital channels",
+        "Faster quote-to-order conversion with streamlined follow-up",
+        "Reduced dependency on cold calling with inbound lead generation",
+    ],
+    "hospitality": [
+        "Higher direct bookings reducing dependency on third-party platforms",
+        "Stronger guest loyalty through personalised post-stay campaigns",
+        "Increased visibility during peak travel and event seasons",
+        "Better online reputation management driving more 5-star reviews",
+        "More corporate and group booking inquiries through targeted outreach",
+        "Improved occupancy rates with data-driven promotional campaigns",
+        "Stronger brand presence across travel search and social platforms",
+    ],
+    "logistics": [
+        "More inbound inquiries from businesses seeking reliable logistics partners",
+        "Stronger positioning against national carriers in regional markets",
+        "Increased contract renewals through proactive client communication",
+        "Better visibility for specialised freight and last-mile services",
+        "Improved lead quality from targeted B2B outreach campaigns",
+        "Faster client onboarding with automated proposal and follow-up flows",
+        "Higher referral rate from satisfied clients through structured programs",
+    ],
+    "legal": [
+        "More qualified client inquiries from people actively seeking legal help",
+        "Stronger local search visibility for your practice areas",
+        "Improved client trust through consistent thought leadership content",
+        "Higher consultation booking rate from targeted digital campaigns",
+        "Better referral pipeline from professional networks and past clients",
+        "Increased brand authority in competitive legal service categories",
+        "Faster case pipeline growth without relying solely on word of mouth",
+    ],
+    "app development": [
+        "More project inquiries from startups and enterprises seeking development partners",
+        "Stronger portfolio visibility across tech communities and search",
+        "Higher client retention through proactive project communication",
+        "Increased inbound leads from decision-makers evaluating app vendors",
+        "Better positioning against offshore development firms in local markets",
+        "Faster sales cycle with targeted outreach to qualified tech buyers",
+        "Improved brand credibility through case studies and client success stories",
+    ],
+    "digital marketing": [
+        "More agency clients from businesses actively searching for marketing help",
+        "Stronger case study visibility driving inbound interest",
+        "Higher retainer conversion from one-time project clients",
+        "Improved positioning as a results-driven agency in your niche",
+        "Faster new client acquisition through targeted cold outreach",
+        "Better referral rate from satisfied clients through structured programs",
+        "Increased brand authority through consistent thought leadership content",
+    ],
+    "ecommerce": [
+        "Higher conversion rate from product page visitors to buyers",
+        "Improved customer lifetime value through retention email campaigns",
+        "Stronger brand visibility across search and social shopping platforms",
+        "Increased repeat purchase rate with personalised product recommendations",
+        "Better abandoned cart recovery with automated follow-up sequences",
+        "More product reviews and social proof driving new buyer confidence",
+        "Faster revenue growth through data-driven promotional targeting",
+    ],
+}
+
+# Generic fallback bullets used when industry is not in the library
+_GENERIC_BULLETS: list[str] = [
+    "Increased qualified website traffic and online visibility",
+    "Improved lead generation from digital channels",
+    "Stronger brand authority in the local market",
+    "Higher conversion rate from prospect to paying client",
+    "Better client retention through consistent digital communication",
+    "Faster business growth with targeted outreach campaigns",
+    "Improved ROI on marketing spend through data-driven strategies",
+    "More referrals and word-of-mouth through reputation management",
+]
+
+
+def _get_bullets(industry: str, solution: str) -> list[str]:
+    """
+    Return 3 unique bullets for this lead.
+    Matches industry to the library (case-insensitive, partial match).
+    Randomises selection so no two leads get the same combination.
+    """
+    industry_lower = (industry or "").lower().strip()
+    solution_lower = (solution or "").lower().strip()
+
+    # Try exact or partial match against library keys
+    pool = None
+    for key, bullets in _BULLET_LIBRARY.items():
+        if key in industry_lower or industry_lower in key:
+            pool = bullets
+            break
+
+    # Also try matching against solution/niche
+    if pool is None:
+        for key, bullets in _BULLET_LIBRARY.items():
+            if key in solution_lower or solution_lower in key:
+                pool = bullets
+                break
+
+    if pool is None:
+        pool = _GENERIC_BULLETS
+
+    # Pick 3 unique bullets, randomised
+    count = min(3, len(pool))
+    return random.sample(pool, count)
 
 
 def _strip_ansi(text: str) -> str:
@@ -307,13 +475,17 @@ def _normalize_email(raw_text: str, lead: dict) -> str:
 
 
 def _detailed_fallback(lead: dict) -> str:
-    """Guaranteed-format fallback — matches the exact approved template."""
+    """Guaranteed-format fallback with industry-specific randomised bullets."""
     name        = _lead_value(lead, "name",     "there")
     company     = _lead_value(lead, "company",  "your business")
     solution    = _lead_value(lead, "niche",    "digital growth")
     industry    = _lead_value(lead, "industry", "your industry")
     sender_name = DEFAULT_SENDER_NAME
     agency_name = DEFAULT_COMPANY_NAME
+
+    # Get 3 unique industry-specific bullets — randomised per lead
+    bullets = _get_bullets(industry, solution)
+    bullet_lines = "\n".join(f"- {b}" for b in bullets)
 
     email = (
         f"Subject: {solution} growth strategy for {company}\n"
@@ -326,9 +498,7 @@ def _detailed_fallback(lead: dict) -> str:
         f"\n"
         f"At {agency_name}, we help {industry} businesses improve online growth through {solution} tailored to their market and customer intent.\n"
         f"\n"
-        f"- Increased qualified website traffic and online visibility\n"
-        f"- Improved lead generation from digital channels\n"
-        f"- Stronger brand authority in the local market\n"
+        f"{bullet_lines}\n"
         f"\n"
         f"Would you be open to a quick 15-minute call to explore how {solution} can help {company} attract more clients?\n"
         f"\n"
@@ -339,6 +509,7 @@ def _detailed_fallback(lead: dict) -> str:
     )
 
     return _ascii_safe(email)
+
 
 
 
