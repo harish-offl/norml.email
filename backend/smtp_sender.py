@@ -23,7 +23,7 @@ def _get_smtp_config():
     return host, port
 
 
-def build_html_email(subject, plain_body, sender_name, agency_name):
+def build_html_email(subject, plain_body, sender_name, agency_name, sender_email=""):
     """Convert plain text email (with '- ' bullets) into proper HTML with <ul><li> tags."""
     sections = []
     bullet_buffer = []
@@ -80,8 +80,9 @@ def build_html_email(subject, plain_body, sender_name, agency_name):
       </td></tr>
       <tr><td style="padding:24px 0 0 0;border-top:1px solid #e5e7eb">
         <p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.6">
-          You received this email because your business was identified as a potential fit.<br>
-          To unsubscribe, reply with "unsubscribe".
+          You received this email from {agency_name} because your business matched our ideal customer profile.<br>
+          <a href="mailto:{sender_email}?subject=unsubscribe" style="color:#ff6a00;text-decoration:none;font-weight:500;">Unsubscribe</a> | 
+          <a href="mailto:{sender_email}?subject=do+not+contact" style="color:#ff6a00;text-decoration:none;font-weight:500;">Do not contact</a>
         </p>
       </td></tr>
     </table>
@@ -213,7 +214,7 @@ class SMTPSender:
             if references_value:
                 msg["References"] = references_value
 
-        html_body = build_html_email(subject, body, sender_name, agency_name)
+        html_body = build_html_email(subject, body, sender_name, agency_name, self.email_address)
         msg.attach(MIMEText(body,      "plain"))
         msg.attach(MIMEText(html_body, "html"))
 

@@ -15,6 +15,12 @@ from backend.app.crud import (
     record_outreach_success,
 )
 from backend.config import DELAY_BETWEEN_EMAILS, MAX_CONCURRENT_EMAILS
+from backend.email_validator import (
+    is_valid_email_format,
+    is_disposable_email,
+    should_skip_email,
+    classify_bounce,
+)
 from backend.env_utils import BASE_DIR, DATA_DIR
 from backend.smtp_sender import SMTPSender
 
@@ -174,11 +180,20 @@ def _process_chunk(worker_id, rows, settings):
                 or f"{solution or 'Growth'} growth strategy for {(row.get('company') or 'your business').strip()}"
             )
 
+            # ✓ Validate email format and skip problematic addresses
+            skip_email, skip_reason = should_skip_email(email)
             if not solution:
                 skipped += 1
                 _record_skip(row, subject=default_subject, reason="Missing solution/niche")
                 record_campaign_progress(skipped=1)
                 print(f"[worker-{worker_id}] Skipped {email or 'unknown'}: missing solution/niche")
+                continue
+            
+            if skip_email:
+                skipped += 1
+                _record_skip(row, subject=default_subject, reason=skip_reason)
+                record_campaign_progress(skipped=1)
+                print(f"[worker-{worker_id}] Skipped {email}: {skip_reason}")
                 continue
 
             thread_context = {"last_message_id": "", "references": []}
@@ -221,12 +236,17 @@ def _process_chunk(worker_id, rows, settings):
                 print(f"[worker-{worker_id}] Sent {touch_type} to: {email}")
             except Exception as exc:
                 failed += 1
-                _record_failure(row, subject=default_subject, error_message=str(exc))
+                # ✓ Classify bounce type for better error tracking
+                bounce_type = classify_bounce(str(exc))
+                error_msg = f"[{bounce_type}] {str(exc)}"
+                _record_failure(row, subject=default_subject, error_message=error_msg)
                 record_campaign_progress(failed=1)
                 print(f"[worker-{worker_id}] Failed {touch_type} for {email or 'unknown'}: {exc}")
 
-            if DELAY_BETWEEN_EMAILS > 0:
-                time.sleep(DELAY_BETWEEN_EMAILS)
+            # ✓ Add minimum delay to avoid GMail throttling (default: 2 seconds)
+            delay = max(DELAY_BETWEEN_EMAILS, 2) if sent > 0 else DELAY_BETWEEN_EMAILS
+            if delay > 0:
+                time.sleep(delay)
 
     return {
         "sent": sent,
