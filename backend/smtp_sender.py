@@ -4,6 +4,7 @@ import ssl
 import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import make_msgid
 
 from backend.config import (
     SMTP_MAX_RETRIES,
@@ -187,10 +188,30 @@ class SMTPSender:
             self.server        = None
             self.email_address = None
 
-    def send(self, to_email, subject, body, sender_name="", agency_name=""):
+    def send(
+        self,
+        to_email,
+        subject,
+        body,
+        sender_name="",
+        agency_name="",
+        reply_to_message_id="",
+        references=None,
+    ):
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["To"]      = to_email
+        message_id = make_msgid()
+        msg["Message-ID"] = message_id
+        if reply_to_message_id:
+            msg["In-Reply-To"] = reply_to_message_id
+        if references:
+            if isinstance(references, (list, tuple)):
+                references_value = " ".join(ref for ref in references if ref)
+            else:
+                references_value = str(references).strip()
+            if references_value:
+                msg["References"] = references_value
 
         html_body = build_html_email(subject, body, sender_name, agency_name)
         msg.attach(MIMEText(body,      "plain"))
@@ -211,7 +232,7 @@ class SMTPSender:
                 else:
                     msg["From"] = from_header
                 self.server.sendmail(self.email_address, to_email, msg.as_string())
-                return
+                return message_id
             except Exception as exc:
                 last_error = exc
                 self.close()
@@ -231,4 +252,4 @@ class SMTPSender:
 def send_email(to_email, subject, body, sender_name="", agency_name=""):
     """Backward-compatible single send API."""
     with SMTPSender() as sender:
-        sender.send(to_email, subject, body, sender_name, agency_name)
+        return sender.send(to_email, subject, body, sender_name, agency_name)

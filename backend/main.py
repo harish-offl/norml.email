@@ -1,5 +1,13 @@
 import argparse
 import os
+import sys
+from pathlib import Path
+
+if __package__ in {None, ""}:
+    project_root = Path(__file__).resolve().parent.parent
+    project_root_str = str(project_root)
+    if project_root_str not in sys.path:
+        sys.path.insert(0, project_root_str)
 
 from backend.app.database import initialize_database
 from backend.campaign_runner import run_campaign

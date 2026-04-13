@@ -18,14 +18,18 @@ from backend.app.campaign_status import (
 )
 from backend.app.crud import (
     bulk_store_leads,
+    count_due_followups,
+    count_ready_outreach,
     count_pending_leads,
     create_lead,
+    get_followup_settings,
     get_lead_by_email,
     leads_exist,
     list_leads,
+    update_followup_settings,
 )
 from backend.app.database import initialize_database
-from backend.app.schemas import LeadCreate
+from backend.app.schemas import FollowupSettingsUpdate, LeadCreate
 from backend.campaign_runner import run_campaign
 from backend.config import get_missing_smtp_settings, smtp_preflight_test
 from backend.env_utils import BASE_DIR
@@ -178,10 +182,13 @@ def start_campaign():
             campaign=get_campaign_status_snapshot(),
         )
 
+    followup_settings = get_followup_settings()
     pending_leads = count_pending_leads()
-    if pending_leads == 0:
+    due_followups = count_due_followups(followup_settings) if followup_settings.get("enabled") else 0
+    ready_outreach = count_ready_outreach(followup_settings)
+    if ready_outreach == 0:
         return _error(
-            "All leads have already been emailed. Upload new leads or replace the existing leads to start another campaign.",
+            "No pending leads or due follow-ups. Upload new leads or wait until the next follow-up window.",
             400,
         )
 
@@ -199,7 +206,7 @@ def start_campaign():
     # NOTE: preflight removed — it blocks campaign on restricted networks.
     # SMTP errors are caught per-lead and reported in campaign status.
 
-    started, campaign = start_campaign_tracking(total=pending_leads)
+    started, campaign = start_campaign_tracking(total=ready_outreach)
     if not started:
         return _error("Campaign is already running.", 409, campaign=campaign)
 
@@ -211,12 +218,46 @@ def start_campaign():
             logger.exception("Campaign thread crashed")
 
     threading.Thread(target=task, daemon=True).start()
-    return {"status": "campaign started", "campaign": campaign}
+    return {
+        "status": "campaign started",
+        "campaign": campaign,
+        "queue": {
+            "pending_leads": pending_leads,
+            "due_followups": due_followups,
+            "total": ready_outreach,
+        },
+    }
 
 
 @app.get("/api/campaign/status/")
 def campaign_status():
     return get_campaign_status_snapshot()
+
+
+@app.get("/api/followups/settings/")
+def get_followup_settings_endpoint():
+    return get_followup_settings()
+
+
+@app.get("/api/followups/settings", include_in_schema=False)
+def get_followup_settings_endpoint_compat():
+    return get_followup_settings()
+
+
+@app.post("/api/followups/settings/")
+def update_followup_settings_endpoint(payload: FollowupSettingsUpdate):
+    try:
+        return update_followup_settings(payload.model_dump())
+    except ValueError as exc:
+        return _error(str(exc), 400)
+
+
+@app.post("/api/followups/settings", include_in_schema=False)
+def update_followup_settings_endpoint_compat(payload: FollowupSettingsUpdate):
+    try:
+        return update_followup_settings(payload.model_dump())
+    except ValueError as exc:
+        return _error(str(exc), 400)
 
 
 @app.get("/", response_class=FileResponse)

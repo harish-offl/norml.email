@@ -10,13 +10,6 @@ pytest-cache-files-*/
 ai_generation.log
 data/*.db
 
-# Python entry files — keep local only, never push (prevents Vercel FastAPI detection)
-main.py
-manage.py
-requirements.txt
-*.py
-backend/
-
 # Next.js / Node.js
 norml-app/node_modules/
 norml-app/.next/
@@ -26,14 +19,9 @@ norml-app/build/
 norml-app/dist/
 norml-app/*.log
 norml-app/.DS_Store
-norml-app/.vercel
 norml-app/next-env.d.ts
 # Package lock files (optional - keep if you want)
 # norml-app/package-lock.json
-
-# Vercel / Node
-node_modules/
-.vercel
 
 # SQLite runtime files
 *.db

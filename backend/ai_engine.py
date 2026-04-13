@@ -573,3 +573,77 @@ def generate_cold_email(lead: dict) -> str:
     _log_result(result, "")
     return result
 
+
+def _reply_subject(subject: str, lead: dict) -> str:
+    base_subject = _ascii_safe((subject or "").strip())
+    if not base_subject:
+        base_subject = _ascii_safe(
+            f"{_lead_value(lead, 'niche', 'digital growth')} growth strategy for "
+            f"{_lead_value(lead, 'company', 'your business')}"
+        )
+    while base_subject.lower().startswith("re:"):
+        base_subject = base_subject[3:].strip()
+    return f"Re: {base_subject}"
+
+
+def generate_followup_email(lead: dict, step_number: int, thread_subject: str = "") -> str:
+    name = _lead_value(lead, "name", "there")
+    company = _lead_value(lead, "company", "your business")
+    solution = _lead_value(lead, "niche", "digital growth")
+    industry = _lead_value(lead, "industry", "your industry")
+    sender_name = DEFAULT_SENDER_NAME
+    subject = _reply_subject(thread_subject, lead)
+    bullets = _get_bullets(industry, solution)
+
+    if step_number == 1:
+        body = (
+            f"Subject: {subject}\n"
+            f"\n"
+            f"Hi {name},\n"
+            f"\n"
+            f"Wanted to quickly circle back on my earlier note about {solution} for {company}.\n"
+            f"\n"
+            f"Two outcomes teams in {industry} often want from this are:\n"
+            f"\n"
+            f"- {bullets[0]}\n"
+            f"- {bullets[1]}\n"
+            f"\n"
+            f"If helpful, I can send over a couple of specific ideas for {company} or keep it to a quick 15-minute call.\n"
+            f"\n"
+            f"Best regards,\n"
+            f"{sender_name}"
+        )
+    elif step_number == 2:
+        body = (
+            f"Subject: {subject}\n"
+            f"\n"
+            f"Hi {name},\n"
+            f"\n"
+            f"Following up once more in case {solution} is still on the radar for {company}.\n"
+            f"\n"
+            f"We usually help {industry} teams improve {bullets[0].lower()} and {bullets[1].lower()} without adding extra sales overhead.\n"
+            f"\n"
+            f"Would it make sense to share 2 or 3 practical ideas for {company}?\n"
+            f"\n"
+            f"Best regards,\n"
+            f"{sender_name}"
+        )
+    else:
+        body = (
+            f"Subject: {subject}\n"
+            f"\n"
+            f"Hi {name},\n"
+            f"\n"
+            f"I will close the loop after this note.\n"
+            f"\n"
+            f"If improving results through {solution} is a priority for {company}, I am happy to send a concise plan or set up a quick 15-minute call.\n"
+            f"\n"
+            f"If not, no worries and I will leave it here.\n"
+            f"\n"
+            f"Best regards,\n"
+            f"{sender_name}"
+        )
+
+    result = _ascii_safe(body)
+    _log_result(result, "")
+    return result

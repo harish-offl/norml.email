@@ -3,16 +3,30 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NORML AGENCY — Email Automation Command Deck</title>
+  <title>NORML AGENCY - Email Automation Command Deck</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/frontend/styles.css">
+  <link rel="stylesheet" href="/frontend/styles.css?v=20260413c">
+  <style>
+    .followup-base-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,220px);gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+    .followup-base-row .followup-label{margin:0}
+    .followup-base-row input{width:100%;height:38px;padding:8px 12px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text)}
+    .followup-base-row input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,106,0,0.12)}
+    .followup-base-note{margin-top:10px;font-size:11.5px;color:var(--text3)}
+    .followup-inputs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:16px}
+    .followup-field{display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:12px;background:linear-gradient(160deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01));border:1px solid var(--border)}
+    .followup-step-title{font-size:13px;font-weight:600;line-height:1.2;color:var(--text);margin:0}
+    .followup-control{display:grid;gap:6px}
+    .followup-label{font-size:12.5px;line-height:1.2;color:var(--text2)}
+    .followup-field input{width:100%;min-width:0;height:40px;padding:9px 12px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text)}
+    .followup-field input:focus{outline:none;border-color:var(--orange);box-shadow:0 0 0 3px rgba(255,106,0,0.12)}
+    @media (max-width:1100px){.followup-inputs{grid-template-columns:1fr}}
+    @media (max-width:768px){.followup-base-row{grid-template-columns:1fr}}
+  </style>
 </head>
 <body>
   <div class="app">
-
-    <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="logo-mark">NA</div>
@@ -51,10 +65,7 @@
       </div>
     </aside>
 
-    <!-- MAIN -->
     <main class="main-content">
-
-      <!-- HEADER -->
       <header class="top-header">
         <div class="header-left">
           <button class="sidebar-toggle" id="sidebarToggle">
@@ -77,10 +88,8 @@
         </div>
       </header>
 
-      <!-- NOTICE -->
       <div class="notice info" id="notice"><strong>System</strong><span>Loading dashboard data...</span></div>
 
-      <!-- ═══ UPLOAD PANEL ═══ -->
       <section class="workspace-view" id="uploadPanel">
         <div class="panel-title-row">
           <div>
@@ -112,7 +121,7 @@
               <strong id="fileName">No file selected yet</strong>
               <span id="fileMeta">Choose a lead sheet to unlock upload controls.</span>
             </div>
-            <button class="btn-ghost-sm" id="clearFile" disabled>✕ Clear</button>
+            <button class="btn-ghost-sm" id="clearFile" disabled>Clear</button>
           </div>
 
           <div class="toggles">
@@ -144,7 +153,7 @@
             </button>
             <button class="btn-orange" id="quickStartBtn" disabled>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              Campaign Control
+              Launch Outreach
             </button>
             <button class="btn-ghost" id="refreshLeads">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
@@ -161,7 +170,6 @@
         </div>
       </section>
 
-      <!-- ═══ OVERVIEW PANEL ═══ -->
       <section class="workspace-view" id="overviewPanel">
         <div class="panel-title-row">
           <div>
@@ -179,11 +187,11 @@
           <div class="hero-content">
             <p class="eyebrow">Workflow</p>
             <h2>Upload. Review.<br>Launch. Monitor.</h2>
-            <p>CSV import, campaign start, live status polling, and full lead visibility — all from one command deck.</p>
+            <p>CSV import, campaign start, live status polling, and full lead visibility from one command deck.</p>
             <div class="hero-notes">
               <div class="hero-note"><strong>CSV Ingestion</strong><span>Header normalization and replace mode built in.</span></div>
               <div class="hero-note"><strong>Background Campaigns</strong><span>Start once, runner processes in the background.</span></div>
-              <div class="hero-note"><strong>Lead Workspace</strong><span>Search and filter sent, pending, skipped, failed.</span></div>
+              <div class="hero-note"><strong>Follow-up Queue</strong><span>Due follow-ups join the same launch flow automatically.</span></div>
             </div>
             <div class="actions">
               <button class="btn-orange" id="jumpUpload">Go To Lead Upload</button>
@@ -193,7 +201,6 @@
         </div>
       </section>
 
-      <!-- ═══ CAMPAIGN CONTROL PANEL ═══ -->
       <section class="workspace-view" id="controlPanel">
         <div class="panel-title-row">
           <div>
@@ -217,32 +224,64 @@
             <p class="foot-note">Polls every 2 seconds while a campaign is running.</p>
           </div>
           <div class="glass-card">
-            <h4 class="card-label">Sender Settings</h4>
+            <h4 class="card-label">Follow-up Sequence</h4>
             <div class="setting-row">
-              <span>Sender Warmup</span>
-              <label class="switch"><input type="checkbox"><span class="slider"></span></label>
+              <span>Enable Follow-ups</span>
+              <label class="switch"><input type="checkbox" id="followupsEnabled"><span class="slider"></span></label>
             </div>
-            <div class="setting-row">
-              <span>Rotate Inbox</span>
-              <label class="switch"><input type="checkbox" checked><span class="slider"></span></label>
+            <div class="followup-base-row">
+              <label class="followup-label" for="followupBaseDate">First email send date (for auto-calc)</label>
+              <input id="followupBaseDate" type="date">
             </div>
-            <div class="setting-row">
-              <span>Auto Follow-up</span>
-              <label class="switch"><input type="checkbox"><span class="slider"></span></label>
+            <p class="followup-base-note">Delay and fixed date stay synced. Updating step 1 or step 2 also shifts later follow-up dates automatically.</p>
+            <div class="followup-inputs">
+              <div class="followup-field">
+                <p class="followup-step-title">1st Follow-up</p>
+                <div class="followup-control">
+                  <label class="followup-label" for="followup1Delay">Delay (days)</label>
+                  <input id="followup1Delay" type="number" min="0" max="90" value="3">
+                </div>
+                <div class="followup-control">
+                  <label class="followup-label" for="followup1Date">Fixed date</label>
+                  <input id="followup1Date" type="date">
+                </div>
+              </div>
+              <div class="followup-field">
+                <p class="followup-step-title">2nd Follow-up</p>
+                <div class="followup-control">
+                  <label class="followup-label" for="followup2Delay">Delay (days)</label>
+                  <input id="followup2Delay" type="number" min="0" max="90" value="7">
+                </div>
+                <div class="followup-control">
+                  <label class="followup-label" for="followup2Date">Fixed date</label>
+                  <input id="followup2Date" type="date">
+                </div>
+              </div>
+              <div class="followup-field">
+                <p class="followup-step-title">Final bump</p>
+                <div class="followup-control">
+                  <label class="followup-label" for="followup3Delay">Delay (days)</label>
+                  <input id="followup3Delay" type="number" min="0" max="90" value="12">
+                </div>
+                <div class="followup-control">
+                  <label class="followup-label" for="followup3Date">Fixed date</label>
+                  <input id="followup3Date" type="date">
+                </div>
+              </div>
             </div>
-            <div class="slider-row">
-              <div class="slider-label"><span>Daily Send Limit</span><strong>50</strong></div>
-              <input type="range" class="range-slider" min="1" max="200" value="50" oninput="this.previousElementSibling.querySelector('strong').textContent=this.value">
+            <div class="summary-grid followup-summary" id="followupSummary">
+              <div class="sum-card"><span>Due Now</span><strong>0</strong></div>
+              <div class="sum-card"><span>Scheduled</span><strong>0</strong></div>
+              <div class="sum-card"><span>Active</span><strong>0</strong></div>
             </div>
-            <div class="slider-row">
-              <div class="slider-label"><span>Delay Between Emails (s)</span><strong>10</strong></div>
-              <input type="range" class="range-slider" min="0" max="60" value="10" oninput="this.previousElementSibling.querySelector('strong').textContent=this.value">
+            <div class="actions" style="margin-top:16px">
+              <button class="btn-primary" id="saveFollowups">Save Follow-up Settings</button>
             </div>
+            <p class="foot-note" id="followupNote">Follow-ups are off. New leads stop after the first email.</p>
           </div>
         </div>
       </section>
 
-      <!-- ═══ LIVE MONITOR PANEL ═══ -->
       <section class="workspace-view" id="monitorPanel">
         <div class="panel-title-row">
           <div>
@@ -274,7 +313,6 @@
         </div>
       </section>
 
-      <!-- ═══ LEADS WORKSPACE PANEL ═══ -->
       <section class="workspace-view" id="workspacePanel">
         <div class="panel-title-row">
           <div>
@@ -287,7 +325,7 @@
           <div class="table-tools">
             <div class="search-wrap">
               <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input id="search" type="search" placeholder="Search name, email, company, industry, solution…">
+              <input id="search" type="search" placeholder="Search name, email, company, industry, solution...">
             </div>
             <div class="filters" id="filters">
               <button class="filter-btn on" data-filter="all">All</button>
@@ -299,7 +337,7 @@
           </div>
           <div class="table-wrap" id="tableWrap">
             <table>
-              <thead><tr><th>Lead</th><th>Contact</th><th>Company</th><th>Focus</th><th>Status</th><th>Last Update</th><th>Notes</th></tr></thead>
+              <thead><tr><th>Lead</th><th>Contact</th><th>Company</th><th>Focus</th><th>Status</th><th>Last Contact</th><th>Notes</th></tr></thead>
               <tbody id="tbody"></tbody>
             </table>
           </div>
@@ -310,21 +348,23 @@
           </div>
         </div>
       </section>
-
     </main>
   </div>
 
   <script>
     const VIEW_IDS=["uploadPanel","overviewPanel","controlPanel","monitorPanel","workspacePanel"];
-    const S={file:null,leads:[],campaign:null,upload:null,view:"uploadPanel",notice:{type:"info",text:"Loading dashboard data..."},filter:"all",search:"",load:{leads:false,campaign:false,upload:false,start:false},poll:null},E={},$=id=>document.getElementById(id);
-    class ApiError extends Error{constructor(message,data){super(message);this.data=data}}
+    const DEFAULT_FOLLOWUPS={enabled:false,followup_1_delay_days:3,followup_2_delay_days:7,final_bump_delay_days:12,followup_1_date:null,followup_2_date:null,final_bump_date:null,due_count:0,scheduled_count:0,active_count:0,next_due_at:null};
+    const S={file:null,leads:[],campaign:null,upload:null,followups:{...DEFAULT_FOLLOWUPS},followupsDraft:null,followupsDirty:false,followupBaseDate:null,followupsApiAvailable:true,view:"uploadPanel",notice:{type:"info",text:"Loading dashboard data..."},filter:"all",search:"",load:{leads:false,campaign:false,settings:false,upload:false,start:false,saveSettings:false},poll:null},E={},$=id=>document.getElementById(id);
+    class ApiError extends Error{constructor(message,data,status){super(message);this.data=data;this.status=status}}
+    const DAY_MS=86400000;
     const esc=v=>String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
     const fmtShort=v=>{if(!v)return"n/a";const d=new Date(v);return Number.isNaN(d.getTime())?v:new Intl.DateTimeFormat(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}).format(d)};
-    const fmtDate=v=>{if(!v)return"Not sent yet";const d=new Date(v);return Number.isNaN(d.getTime())?v:new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(d)};
+    const fmtDate=v=>{if(!v)return"Not contacted yet";const d=new Date(v);return Number.isNaN(d.getTime())?v:new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(d)};
     const fmtElapsed=v=>{if(v===null||v===undefined||Number.isNaN(Number(v)))return"n/a";v=Math.max(0,Math.round(Number(v)));return v<60?`${v}s`:`${Math.floor(v/60)}m ${v%60}s`};
     const fmtSize=v=>!Number.isFinite(v)?"Unknown size":v<1024?`${v} B`:v<1048576?`${(v/1024).toFixed(1)} KB`:`${(v/1048576).toFixed(1)} MB`;
-    const getLeadStatus=l=>{const s=String(l.last_status||"").toLowerCase();if(l.sent_at||s==="sent")return"sent";if(s==="failed")return"failed";if(s==="skipped")return"skipped";return"pending"};
+    const getLeadStatus=l=>{const s=String(l.last_status||"").toLowerCase();if(s==="failed")return"failed";if(s==="skipped")return"skipped";if(l.sent_at||s==="sent")return"sent";return"pending"};
     const getCampaign=()=>S.campaign||{status:"idle",message:"No campaign has been started yet.",total:0,processed:0,sent:0,skipped:0,failed:0,remaining:0,elapsed_seconds:null,started_at:null,finished_at:null};
+    const getFollowups=()=>({...DEFAULT_FOLLOWUPS,...(S.followups||{})});
     const campaignText=c=>c&&c.message?c.message:`Campaign ${(c&&c.status)||"idle"}.`;
     const stats=()=>S.leads.reduce((a,l)=>{const s=getLeadStatus(l);a.total++;if(s==="sent")a.sent++;else if(s==="failed")a.failed++;else if(s==="skipped")a.skipped++;else a.pending++;return a},{total:0,pending:0,sent:0,failed:0,skipped:0});
     const chipClass=s=>s==="running"?"chip-run":s==="finished"?"chip-good":s==="failed"?"chip-bad":"";
@@ -332,50 +372,54 @@
     const setActiveNav=target=>{if(!E.sidebarNav)return;[...E.sidebarNav.querySelectorAll("[data-target]")].forEach(el=>{const active=el.dataset.target===target;el.classList.toggle("active",active);el.setAttribute("aria-current",active?"page":"false")})};
     const applyActiveView=()=>{VIEW_IDS.forEach(id=>{const panel=$(id);if(!panel)return;const active=id===S.view;panel.classList.toggle("is-active",active);panel.hidden=!active});setActiveNav(S.view)};
     const setActiveView=(target,scroll=true)=>{if(!VIEW_IDS.includes(target))return;S.view=target;applyActiveView();if(scroll)window.scrollTo({top:0})};
-    async function json(url,opt){const r=await fetch(url,opt);let d=null;try{d=await r.json()}catch(e){d=null}if(!r.ok)throw new ApiError(d&&d.error?d.error:"Request failed.",d);return d}
+    async function json(url,opt){const r=await fetch(url,opt);let d=null;try{d=await r.json()}catch(e){d=null}if(!r.ok)throw new ApiError(d&&d.error?d.error:"Request failed.",d,r.status);return d}
+    const FOLLOWUPS_ENDPOINTS=["/api/followups/settings/","/api/followups/settings"];
+    async function jsonWithFallback(urls,opt){let lastError=null;for(const url of urls){try{return await json(url,opt)}catch(e){lastError=e;if(Number(e&&e.status||0)===404)continue;throw e}}throw(lastError||new ApiError("Request failed.",null,404))}
+    function readDelay(input){return Math.max(0,Math.min(90,Number(input&&input.value||0)||0))}
+    function readDate(input){const raw=String(input&&input.value||"").trim();return raw||null}
+    function followupPayloadFromState(){const f={...getFollowups(),...(S.followupsDraft||{})};return{enabled:!!f.enabled,followup_1_delay_days:readDelay({value:f.followup_1_delay_days}),followup_2_delay_days:readDelay({value:f.followup_2_delay_days}),final_bump_delay_days:readDelay({value:f.final_bump_delay_days}),followup_1_date:f.followup_1_date||null,followup_2_date:f.followup_2_date||null,final_bump_date:f.final_bump_date||null}}
+    function buildFollowupPayload(){if(E.followupsEnabled&&E.followup1Delay&&E.followup2Delay&&E.followup3Delay&&E.followup1Date&&E.followup2Date&&E.followup3Date){return{enabled:!!E.followupsEnabled.checked,followup_1_delay_days:readDelay(E.followup1Delay),followup_2_delay_days:readDelay(E.followup2Delay),final_bump_delay_days:readDelay(E.followup3Delay),followup_1_date:readDate(E.followup1Date),followup_2_date:readDate(E.followup2Date),final_bump_date:readDate(E.followup3Date)}}return followupPayloadFromState()}
+    function resetFollowupDraft(){S.followupsDraft=null;S.followupsDirty=false}
+    function markFollowupDraft(){S.followupsDraft={...(S.followupsDraft||{}),...buildFollowupPayload()};S.followupsDirty=true}
+    const todayIsoDate=()=>{const now=new Date();return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`};
+    function parseIsoDate(value){const text=String(value||"").trim();const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(text);if(!m)return null;const y=Number(m[1]),mo=Number(m[2]),d=Number(m[3]);const dt=new Date(Date.UTC(y,mo-1,d));if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==mo-1||dt.getUTCDate()!==d)return null;return dt}
+    const formatIsoDate=d=>d instanceof Date?d.toISOString().slice(0,10):"";
+    const addDays=(base,days)=>new Date(base.getTime()+Math.max(0,Math.round(Number(days)||0))*DAY_MS);
+    const daysBetween=(from,to)=>Math.max(0,Math.round((to.getTime()-from.getTime())/DAY_MS));
+    function resolveFollowupBaseDate(){const inputValue=readDate(E.followupBaseDate);const parsedInput=parseIsoDate(inputValue);if(parsedInput){S.followupBaseDate=formatIsoDate(parsedInput);return parsedInput}const fallback=parseIsoDate(S.followupBaseDate)||parseIsoDate(todayIsoDate());S.followupBaseDate=formatIsoDate(fallback);if(E.followupBaseDate)E.followupBaseDate.value=S.followupBaseDate;return fallback}
+    function syncDatesFromDelays(changedStep=1){if(!E.followup1Delay||!E.followup2Delay||!E.followup3Delay||!E.followup1Date||!E.followup2Date||!E.followup3Date)return;const base=resolveFollowupBaseDate();const d1=readDelay(E.followup1Delay),d2=readDelay(E.followup2Delay),d3=readDelay(E.followup3Delay);const step1Date=addDays(base,d1),step2Date=addDays(step1Date,d2),step3Date=addDays(step2Date,d3);if(changedStep<=1)E.followup1Date.value=formatIsoDate(step1Date);if(changedStep<=2)E.followup2Date.value=formatIsoDate(step2Date);if(changedStep<=3)E.followup3Date.value=formatIsoDate(step3Date)}
+    function syncDelaysFromDates(changedStep=1){if(!E.followup1Delay||!E.followup2Delay||!E.followup3Delay||!E.followup1Date||!E.followup2Date||!E.followup3Date)return;const base=resolveFollowupBaseDate();let d1=readDelay(E.followup1Delay),d2=readDelay(E.followup2Delay),d3=readDelay(E.followup3Delay);let step1Date=parseIsoDate(readDate(E.followup1Date))||addDays(base,d1);if(changedStep===1){const selected=parseIsoDate(readDate(E.followup1Date));if(selected){step1Date=selected;d1=daysBetween(base,step1Date);E.followup1Delay.value=d1}else{E.followup1Date.value=formatIsoDate(step1Date)}}let step2Date=parseIsoDate(readDate(E.followup2Date))||addDays(step1Date,d2);if(changedStep===2||changedStep===1){if(changedStep===2){const selected=parseIsoDate(readDate(E.followup2Date));if(selected){step2Date=selected;d2=daysBetween(step1Date,step2Date);E.followup2Delay.value=d2}else{E.followup2Date.value=formatIsoDate(step2Date)}}else{step2Date=addDays(step1Date,d2);E.followup2Date.value=formatIsoDate(step2Date)}}let step3Date=parseIsoDate(readDate(E.followup3Date))||addDays(step2Date,d3);if(changedStep===3||changedStep===2||changedStep===1){if(changedStep===3){const selected=parseIsoDate(readDate(E.followup3Date));if(selected){step3Date=selected;d3=daysBetween(step2Date,step3Date);E.followup3Delay.value=d3}else{E.followup3Date.value=formatIsoDate(step3Date)}}else{step3Date=addDays(step2Date,d3);E.followup3Date.value=formatIsoDate(step3Date)}}}
+    function handleFollowupBaseDateChanged(){S.followupBaseDate=readDate(E.followupBaseDate)||todayIsoDate();syncDatesFromDelays(1);markFollowupDraft()}
+    function isMissingFollowupsApi(e){return Number(e&&e.status||0)===404}
     function setFile(file){if(file&&!file.name.toLowerCase().endsWith(".csv")){S.file=null;E.fileInput.value="";setNotice("error","Please choose a CSV file.");render();return}S.file=file||null;if(file)setNotice("info",`${file.name} is ready to upload.`);render()}
-    function syncPoll(){
-      const run=getCampaign().status==="running";
-      if(S.poll){clearInterval(S.poll);S.poll=null}
-      if(run)S.poll=setInterval(async()=>{
-        // Poll campaign status AND leads simultaneously so workspace updates live
-        const prevSent=S.leads.filter(l=>getLeadStatus(l)==="sent").length;
-        await Promise.all([loadCampaign(false),loadLeads(false)]);
-        const nowSent=S.leads.filter(l=>getLeadStatus(l)==="sent").length;
-        // If new emails were sent, switch filter to "sent" so user sees them immediately
-        if(nowSent>prevSent){
-          S.filter="sent";
-          renderLeads();
-        }
-      },2000);
-    }
-    async function loadLeads(show){S.load.leads=true;if(show)setNotice("info","Refreshing lead records...");render();try{const d=await json("/api/leads/");S.leads=Array.isArray(d)?d:Array.isArray(d&&d.results)?d.results:[];if(show)setNotice("success",`Loaded ${S.leads.length} lead${S.leads.length===1?"":"s"}.`)}catch(e){setNotice("error",e.message||"Could not load leads.");}finally{S.load.leads=false;render();}}
-    async function loadCampaign(show){S.load.campaign=true;if(show)setNotice("info","Checking campaign status...");render();const prev=getCampaign().status;try{S.campaign=await json("/api/campaign/status/");if(show)setNotice("success",campaignText(S.campaign));syncPoll();if(prev==="running"&&getCampaign().status!=="running"){await loadLeads(false);S.filter="sent";setActiveView("workspacePanel");setNotice("success",`Campaign complete! ${getCampaign().sent||0} emails sent. Showing sent leads.`);}}catch(e){setNotice("error",e.message||"Could not load campaign status.")}finally{S.load.campaign=false;render()}}
-    async function refreshAll(show){await Promise.all([loadLeads(show),loadCampaign(show)])}
+    function syncPoll(){const run=getCampaign().status==="running";if(S.poll){clearInterval(S.poll);S.poll=null}if(run)S.poll=setInterval(async()=>{await Promise.all([loadCampaign(false),loadLeads(false)])},2000)}
+    async function persistFollowupSettings({showNotices=true,forLaunch=false}={}){const payload=buildFollowupPayload();const launchNeedsFollowups=forLaunch&&!!payload.enabled;if(!S.followupsApiAvailable&&launchNeedsFollowups){setNotice("error","Follow-up settings API is unavailable. Cannot launch with follow-ups enabled.");return false}if(showNotices){S.load.saveSettings=true;setNotice("info","Saving follow-up settings...");render()}try{S.followups={...DEFAULT_FOLLOWUPS,...await jsonWithFallback(FOLLOWUPS_ENDPOINTS,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})};S.followupsApiAvailable=true;resetFollowupDraft();if(showNotices)setNotice("success",S.followups.enabled?"Follow-up sequence saved. Date values override delay days for each step.":"Follow-ups disabled. Active sequences were closed out.");return true}catch(e){if(isMissingFollowupsApi(e)){S.followupsApiAvailable=false;if(launchNeedsFollowups){setNotice("error","Follow-up settings API is unavailable on this backend build.");return false}if(showNotices)setNotice("error","Follow-up settings API is unavailable on this backend build.");return forLaunch?!launchNeedsFollowups:false}const msg=e&&e.message?String(e.message):"Could not save follow-up settings.";if(launchNeedsFollowups){setNotice("error",`Could not apply follow-up settings before launch: ${msg}`);return false}if(showNotices)setNotice("error",msg);return forLaunch?!launchNeedsFollowups:false}finally{if(showNotices){S.load.saveSettings=false;render()}}}
+    async function loadLeads(show){S.load.leads=true;if(show)setNotice("info","Refreshing lead records...");render();try{const d=await json("/api/leads/");S.leads=Array.isArray(d)?d:Array.isArray(d&&d.results)?d.results:[];if(show)setNotice("success",`Loaded ${S.leads.length} lead${S.leads.length===1?"":"s"}.`)}catch(e){setNotice("error",e.message||"Could not load leads.")}finally{S.load.leads=false;render()}}
+    async function loadCampaign(show){S.load.campaign=true;if(show)setNotice("info","Checking campaign status...");render();const prev=getCampaign().status;try{S.campaign=await json("/api/campaign/status/");if(show)setNotice("success",campaignText(S.campaign));syncPoll();if(prev==="running"&&getCampaign().status!=="running"){await Promise.all([loadLeads(false),loadFollowups(false)]);setActiveView("workspacePanel")}}catch(e){setNotice("error",e.message||"Could not load campaign status.")}finally{S.load.campaign=false;render()}}
+    async function loadFollowups(show){S.load.settings=true;if(show)setNotice("info","Loading follow-up settings...");render();try{S.followups={...DEFAULT_FOLLOWUPS,...await jsonWithFallback(FOLLOWUPS_ENDPOINTS)};if(!S.followupsDirty)S.followupsDraft=null;S.followupsApiAvailable=true;if(show)setNotice("success","Follow-up settings loaded.")}catch(e){if(isMissingFollowupsApi(e)){S.followupsApiAvailable=false;S.followups={...DEFAULT_FOLLOWUPS};if(show)setNotice("info","Follow-up settings API is unavailable on this backend build.");}else{setNotice("error",e.message||"Could not load follow-up settings.")}}finally{S.load.settings=false;render()}}
+    async function refreshAll(show){await Promise.all([loadLeads(show),loadCampaign(show),loadFollowups(show)])}
     async function upload(){if(!S.file){setNotice("error","Choose a CSV file before uploading leads.");render();return}S.load.upload=true;setNotice("info","Uploading lead file...");render();const fd=new FormData();fd.append("file",S.file);fd.append("replace_existing",E.replace.checked?"true":"false");fd.append("require_solution",E.require.checked?"true":"false");try{S.upload=await json("/api/leads/upload/",{method:"POST",body:fd});S.file=null;E.fileInput.value="";setNotice("success",`Upload complete. Created ${S.upload.created||0}, updated ${S.upload.updated||0}, skipped ${S.upload.skipped||0}.`);await loadLeads(false)}catch(e){if(e.data)S.upload={created:0,updated:0,skipped:e.data.skipped||0,ignored_columns:e.data.ignored_columns||[]};setNotice("error",e.message||"Lead upload failed.")}finally{S.load.upload=false;render()}}
-    async function start(){S.load.start=true;setNotice("info","Starting the campaign runner...");render();try{const d=await json("/api/campaign/start/",{method:"POST"});S.campaign=d.campaign||S.campaign;setNotice("success",d.status||campaignText(S.campaign));syncPoll()}catch(e){if(e.data&&e.data.campaign){S.campaign=e.data.campaign;syncPoll()}setNotice("error",e.message||"Could not start the campaign.")}finally{S.load.start=false;render()}}
-    async function quickStart(){
-      S.filter="all"; // reset filter so all leads visible during send
-      await start();
-      setActiveView("workspacePanel"); // show workspace so user watches live
-    }
-    function renderTop(){const st=stats(),c=getCampaign();E.topChips.innerHTML=`<span class="chip ${chipClass(c.status)}"><strong>Campaign</strong> ${esc(c.status)}</span><span class="chip"><strong>Leads</strong> ${st.total}</span><span class="chip"><strong>Pending</strong> ${st.pending}</span>`}
+    async function start(){S.load.start=true;setNotice("info","Starting the campaign runner...");render();try{const saved=await persistFollowupSettings({showNotices:false,forLaunch:true});if(!saved){render();return false}const d=await json("/api/campaign/start/",{method:"POST"});S.campaign=d.campaign||S.campaign;const queue=d.queue||{};const total=Number(queue.total||0);setNotice("success",total?`Campaign started for ${total} outreach item${total===1?"":"s"}.`:d.status||campaignText(S.campaign));syncPoll();return true}catch(e){if(e.data&&e.data.campaign){S.campaign=e.data.campaign;syncPoll()}setNotice("error",e.message||"Could not start the campaign.");return false}finally{S.load.start=false;render()}}
+    async function quickStart(){const started=await start();if(started)setActiveView("monitorPanel")}
+    async function saveFollowups(){const saved=await persistFollowupSettings({showNotices:true,forLaunch:false});if(saved)await loadLeads(false)}
+    function renderTop(){const st=stats(),c=getCampaign(),f=getFollowups(),due=f.enabled?Number(f.due_count||0):0;E.topChips.innerHTML=`<span class="chip ${chipClass(c.status)}"><strong>Campaign</strong> ${esc(c.status)}</span><span class="chip"><strong>Leads</strong> ${st.total}</span><span class="chip"><strong>Pending</strong> ${st.pending}</span><span class="chip"><strong>Due Follow-ups</strong> ${due}</span>`}
     function renderNotice(){E.notice.className=`notice ${S.notice.type}`;E.notice.innerHTML=`<strong>System</strong><span>${esc(S.notice.text)}</span>`}
     function renderFile(){if(!S.file){E.fileName.textContent="No file selected yet";E.fileMeta.textContent="Choose a lead sheet to unlock upload controls.";E.uploadChip.textContent="CSV import ready"}else{E.fileName.textContent=S.file.name;E.fileMeta.textContent=`${fmtSize(S.file.size)} selected and ready for upload.`;E.uploadChip.textContent="File staged"}}
     function renderUpload(){const u=S.upload||{created:0,updated:0,skipped:0,ignored_columns:[]};E.uploadSummary.innerHTML=`<div class="sum-card"><span>Created</span><strong>${u.created||0}</strong></div><div class="sum-card"><span>Updated</span><strong>${u.updated||0}</strong></div><div class="sum-card"><span>Skipped</span><strong>${u.skipped||0}</strong></div>`;E.ignored.textContent=u.ignored_columns&&u.ignored_columns.length?`Ignored columns: ${u.ignored_columns.join(", ")}`:"Ignored columns will appear here after an upload."}
-    function renderStats(){const s=stats(),a=s.failed+s.skipped;E.stTotal.textContent=s.total;E.stPending.textContent=s.pending;E.stSent.textContent=s.sent;E.stAttention.textContent=a;E.stTotalNote.textContent=s.total?`${s.total} records in the backend.`:"Upload a CSV to create your first batch.";E.stPendingNote.textContent=s.pending?`${s.pending} lead${s.pending===1?"":"s"} waiting to be emailed.`:"No pending leads right now.";E.stSentNote.textContent=s.sent?`${s.sent} lead${s.sent===1?"":"s"} marked as sent.`:"Sent leads will appear here.";E.stAttentionNote.textContent=a?`${a} lead${a===1?"":"s"} need review.`:"No failed or skipped leads."}
-    function renderControl(){const s=stats(),c=getCampaign(),running=c.status==="running",hasLeads=s.total>0,hasPending=s.pending>0;E.campaignChip.className=`badge-status ${chipClass(c.status)}`;E.campaignChip.textContent=c.status;E.checks.innerHTML=[{ok:hasLeads,t:hasLeads?"Lead list available":"No leads loaded yet",d:hasLeads?`${s.total} lead${s.total===1?"":"s"} ready.`:"Upload a CSV file first."},{ok:hasPending,t:hasPending?"Pending leads ready":"No pending leads left",d:hasPending?`${s.pending} lead${s.pending===1?"":"s"} eligible for sending.`:"Every lead has already been processed."},{ok:!running,t:running?"Campaign already running":"Runner available",d:running?"Wait for the current campaign to finish.":"Backend is ready to accept a new launch."}].map(i=>`<li class="check-item ${i.ok?"ok":"warn"}"><span class="check-icon">${i.ok?"✓":"!"}</span><div><strong>${esc(i.t)}</strong><span>${esc(i.d)}</span></div></li>`).join("");E.context.textContent=running?"A campaign is running. Use the monitor to track progress.":!hasLeads?"No leads stored yet. Upload a CSV before launching.":!hasPending?"All leads are processed. Upload a fresh file to restart.":`${s.pending} pending lead${s.pending===1?"":"s"} ready for the next campaign.`}
-    function renderMonitor(){const c=getCampaign(),t=Number(c.total||0),p=Number(c.processed||0),pct=t?Math.min(100,Math.round(p/t*100)):0;E.statusPill.className=`badge-status ${chipClass(c.status)}`;E.statusPill.textContent=c.status;E.elapsed.textContent=`Elapsed: ${fmtElapsed(c.elapsed_seconds)}`;E.progressPct.textContent=`${pct}%`;E.progressLabel.textContent=c.status==="running"?"Campaign is actively processing leads.":campaignText(c);E.progressCount.textContent=`${p} / ${t} processed`;E.fill.style.width=`${pct}%`;E.fill.classList.toggle("run",c.status==="running");E.mTotal.textContent=t;E.mProcessed.textContent=p;E.mSent.textContent=c.sent||0;E.mSkipped.textContent=c.skipped||0;E.mFailed.textContent=c.failed||0;E.campaignMessage.textContent=campaignText(c);E.metaChips.innerHTML=`<span class="chip ${chipClass(c.status)}"><strong>Status</strong> ${esc(c.status)}</span><span class="chip"><strong>Remaining</strong> ${esc(c.remaining||0)}</span><span class="chip"><strong>Started</strong> ${esc(fmtShort(c.started_at))}</span><span class="chip"><strong>Finished</strong> ${esc(fmtShort(c.finished_at))}</span>`}
-    function viewLeads(){return S.leads.filter(l=>{const st=getLeadStatus(l);if(S.filter!=="all"&&st!==S.filter)return false;if(!S.search)return true;const hay=[l.name,l.email,l.company,l.industry,l.niche,l.phone].filter(Boolean).join(" ").toLowerCase();return hay.includes(S.search)})}
-    function renderLeads(){const rows=viewLeads(),total=S.leads.length;E.leadChip.textContent=`${rows.length} visible lead${rows.length===1?"":"s"}`;[...E.filters.querySelectorAll("[data-filter]")].forEach(b=>b.classList.toggle("on",b.dataset.filter===S.filter));if(!rows.length){E.tbody.innerHTML="";E.tableWrap.hidden=true;E.empty.hidden=false;E.empty.querySelector("span").textContent=total===0?"Upload a CSV to populate leads.":"Try a different search or status filter.";return}E.tableWrap.hidden=false;E.empty.hidden=true;E.tbody.innerHTML=rows.map(l=>{const st=getLeadStatus(l),note=esc(l.last_error||"No errors logged.");return`<tr><td><div class="lead-cell"><strong>${esc(l.name||"Unnamed lead")}</strong><span>${esc(l.industry||"—")}</span></div></td><td><div class="lead-cell"><strong>${esc(l.email||"-")}</strong><span>${esc(l.phone||"—")}</span></div></td><td><div class="lead-cell"><strong>${esc(l.company||"—")}</strong><span>${esc(l.industry||"—")}</span></div></td><td><div class="lead-cell"><strong>${esc(l.niche||"—")}</strong><span>Service focus</span></div></td><td><span class="status-tag ${st}">${esc(st)}</span></td><td><span class="muted">${esc(fmtDate(l.sent_at))}</span></td><td><span class="muted" title="${note}">${note.length>40?note.slice(0,40)+"…":note}</span></td></tr>`}).join("")}
-    function renderButtons(){const s=stats(),c=getCampaign(),running=c.status==="running";if(E.clearFile)E.clearFile.disabled=!S.file;if(E.uploadBtn){E.uploadBtn.disabled=!S.file||S.load.upload;E.uploadBtn.textContent=S.load.upload?"Uploading...":"Upload Leads";}if(E.quickStartBtn){E.quickStartBtn.disabled=running||!s.total||!s.pending||S.load.start||S.load.upload;E.quickStartBtn.textContent=S.load.start?"Launching...":running?"Running...":"Campaign Control";}if(E.startBtn){E.startBtn.disabled=running||!s.total||!s.pending||S.load.start;E.startBtn.textContent=S.load.start?"Launching...":running?"Running...":"Start Campaign";}if(E.refreshAll)E.refreshAll.disabled=S.load.upload||S.load.start||S.load.leads||S.load.campaign;if(E.refreshLeads)E.refreshLeads.disabled=S.load.leads;if(E.refreshStatus)E.refreshStatus.disabled=S.load.campaign;}
-    function render(){renderNotice();renderTop();renderFile();renderUpload();renderStats();renderControl();renderMonitor();renderLeads();renderButtons();applyActiveView()}
+    function renderStats(){const s=stats(),a=s.failed+s.skipped;E.stTotal.textContent=s.total;E.stPending.textContent=s.pending;E.stSent.textContent=s.sent;E.stAttention.textContent=a;E.stTotalNote.textContent=s.total?`${s.total} records in the backend.`:"Upload a CSV to create your first batch.";E.stPendingNote.textContent=s.pending?`${s.pending} lead${s.pending===1?"":"s"} waiting for the first touch.`:"No new leads waiting right now.";E.stSentNote.textContent=s.sent?`${s.sent} lead${s.sent===1?"":"s"} have been contacted.`:"Sent leads will appear here.";E.stAttentionNote.textContent=a?`${a} lead${a===1?"":"s"} need review.`:"No failed or skipped leads."}
+    function renderFollowups(){const persisted=getFollowups(),f={...persisted,...(S.followupsDraft||{})};if(!S.followupBaseDate)S.followupBaseDate=todayIsoDate();if(E.followupBaseDate)E.followupBaseDate.value=S.followupBaseDate;if(E.followupsEnabled)E.followupsEnabled.checked=!!f.enabled;if(E.followup1Delay)E.followup1Delay.value=Number(f.followup_1_delay_days||0);if(E.followup2Delay)E.followup2Delay.value=Number(f.followup_2_delay_days||0);if(E.followup3Delay)E.followup3Delay.value=Number(f.final_bump_delay_days||0);if(E.followup1Date)E.followup1Date.value=f.followup_1_date||"";if(E.followup2Date)E.followup2Date.value=f.followup_2_date||"";if(E.followup3Date)E.followup3Date.value=f.final_bump_date||"";E.followupSummary.innerHTML=`<div class="sum-card"><span>Due Now</span><strong>${Number(persisted.due_count||0)}</strong></div><div class="sum-card"><span>Scheduled</span><strong>${Number(persisted.scheduled_count||0)}</strong></div><div class="sum-card"><span>Active</span><strong>${Number(persisted.active_count||0)}</strong></div>`;if(!S.followupsApiAvailable){E.followupNote.textContent="Follow-up settings API unavailable on current backend build.";return}if(!f.enabled){E.followupNote.textContent="Follow-ups are off. New leads stop after the first email.";return}const fixedDates=[f.followup_1_date,f.followup_2_date,f.final_bump_date].filter(Boolean);const dateHint=fixedDates.length?` Fixed dates active for ${fixedDates.length} step${fixedDates.length===1?"":"s"}.`:"";const nextDue=persisted.next_due_at?` Next due ${fmtShort(persisted.next_due_at)}.`:"";const unsaved=S.followupsDirty?" Unsaved changes will be auto-applied on Start Campaign.":"";E.followupNote.textContent=`Start Campaign processes new leads and due follow-ups.${dateHint}${nextDue}${unsaved}`}
+    function renderControl(){const s=stats(),f=getFollowups(),c=getCampaign(),running=c.status==="running",hasLeads=s.total>0,due=f.enabled?Number(f.due_count||0):0,ready=s.pending+due;E.campaignChip.className=`badge-status ${chipClass(c.status)}`;E.campaignChip.textContent=c.status;E.checks.innerHTML=[{ok:hasLeads,t:hasLeads?"Lead list available":"No leads loaded yet",d:hasLeads?`${s.total} lead${s.total===1?"":"s"} stored in the backend.`:"Upload a CSV file first."},{ok:ready>0,t:ready>0?"Outreach queue ready":"No outreach due right now",d:ready>0?`${s.pending} new lead${s.pending===1?"":"s"} and ${due} due follow-up${due===1?"":"s"} ready to process.`:f.enabled?"No new leads are waiting and no follow-ups are due yet.":"No pending leads are waiting for a first touch."},{ok:!running,t:running?"Campaign already running":"Runner available",d:running?"Wait for the current campaign to finish.":"Backend is ready to process the queue."}].map(i=>`<li class="check-item ${i.ok?"ok":"warn"}"><span class="check-icon">${i.ok?"✓":"!"}</span><div><strong>${esc(i.t)}</strong><span>${esc(i.d)}</span></div></li>`).join("");E.context.textContent=running?"A campaign is running. Use the monitor to track progress.":!hasLeads?"No leads stored yet. Upload a CSV before launching.":ready===0?f.enabled?"No new leads or due follow-ups right now. The next scheduled follow-up will appear here automatically.":"All current leads are processed. Upload a fresh file to start again.":`${s.pending} new lead${s.pending===1?"":"s"} and ${due} due follow-up${due===1?"":"s"} are ready for the next run.`}
+    function renderMonitor(){const c=getCampaign(),t=Number(c.total||0),p=Number(c.processed||0),pct=t?Math.min(100,Math.round(p/t*100)):0;E.statusPill.className=`badge-status ${chipClass(c.status)}`;E.statusPill.textContent=c.status;E.elapsed.textContent=`Elapsed: ${fmtElapsed(c.elapsed_seconds)}`;E.progressPct.textContent=`${pct}%`;E.progressLabel.textContent=c.status==="running"?"Campaign is actively processing outreach.":campaignText(c);E.progressCount.textContent=`${p} / ${t} processed`;E.fill.style.width=`${pct}%`;E.fill.classList.toggle("run",c.status==="running");E.mTotal.textContent=t;E.mProcessed.textContent=p;E.mSent.textContent=c.sent||0;E.mSkipped.textContent=c.skipped||0;E.mFailed.textContent=c.failed||0;E.campaignMessage.textContent=campaignText(c);E.metaChips.innerHTML=`<span class="chip ${chipClass(c.status)}"><strong>Status</strong> ${esc(c.status)}</span><span class="chip"><strong>Remaining</strong> ${esc(c.remaining||0)}</span><span class="chip"><strong>Started</strong> ${esc(fmtShort(c.started_at))}</span><span class="chip"><strong>Finished</strong> ${esc(fmtShort(c.finished_at))}</span>`}
+    function viewLeads(){return S.leads.filter(l=>{const st=getLeadStatus(l);if(S.filter!=="all"&&st!==S.filter)return false;if(!S.search)return true;const hay=[l.name,l.email,l.company,l.industry,l.niche,l.phone,l.sequence_status].filter(Boolean).join(" ").toLowerCase();return hay.includes(S.search)})}
+    function renderLeads(){const rows=viewLeads(),total=S.leads.length;E.leadChip.textContent=`${rows.length} visible lead${rows.length===1?"":"s"}`;[...E.filters.querySelectorAll("[data-filter]")].forEach(b=>b.classList.toggle("on",b.dataset.filter===S.filter));if(!rows.length){E.tbody.innerHTML="";E.tableWrap.hidden=true;E.empty.hidden=false;E.empty.querySelector("span").textContent=total===0?"Upload a CSV to populate leads.":"Try a different search or status filter.";return}E.tableWrap.hidden=false;E.empty.hidden=true;E.tbody.innerHTML=rows.map(l=>{const st=getLeadStatus(l),lastContact=l.last_contacted_at||l.sent_at,sequenceStatus=l.sequence_status||"pending",noteParts=[`Sequence ${sequenceStatus}`];if(Number(l.followup_count||0)>0)noteParts.push(`Follow-ups sent ${Number(l.followup_count||0)}`);if(l.next_followup_at)noteParts.push(`Next ${fmtShort(l.next_followup_at)}`);else if(sequenceStatus==="completed"&&l.sent_at)noteParts.push("No more follow-ups");if(l.last_error)noteParts.push(l.last_error);const noteRaw=noteParts.join(" | ");const noteTitle=esc(noteRaw||"No errors logged.");const notePreview=(noteRaw||"No errors logged.");return`<tr><td><div class="lead-cell"><strong>${esc(l.name||"Unnamed lead")}</strong><span>${esc(l.industry||"-")}</span></div></td><td><div class="lead-cell"><strong>${esc(l.email||"-")}</strong><span>${esc(l.phone||"-")}</span></div></td><td><div class="lead-cell"><strong>${esc(l.company||"-")}</strong><span>${esc(l.industry||"-")}</span></div></td><td><div class="lead-cell"><strong>${esc(l.niche||"-")}</strong><span>Service focus</span></div></td><td><span class="status-tag ${st}">${esc(st)}</span></td><td><span class="muted">${esc(fmtDate(lastContact))}</span></td><td><span class="muted" title="${noteTitle}">${esc(notePreview.length>72?notePreview.slice(0,72)+"...":notePreview)}</span></td></tr>`}).join("")}
+    function renderButtons(){const s=stats(),f=getFollowups(),c=getCampaign(),running=c.status==="running",ready=s.pending+(f.enabled?Number(f.due_count||0):0);if(E.clearFile)E.clearFile.disabled=!S.file;if(E.uploadBtn){E.uploadBtn.disabled=!S.file||S.load.upload;E.uploadBtn.textContent=S.load.upload?"Uploading...":"Upload Leads"}if(E.quickStartBtn){E.quickStartBtn.disabled=running||ready===0||S.load.start||S.load.upload;E.quickStartBtn.textContent=S.load.start?"Launching...":running?"Running...":"Launch Outreach"}if(E.startBtn){E.startBtn.disabled=running||ready===0||S.load.start;E.startBtn.textContent=S.load.start?"Launching...":running?"Running...":"Start Campaign"}if(E.saveFollowups){const blocked=S.load.settings||S.load.saveSettings||S.load.start||!S.followupsApiAvailable;E.saveFollowups.disabled=blocked;E.saveFollowups.textContent=!S.followupsApiAvailable?"Follow-up API Unavailable":S.load.saveSettings?"Saving...":S.followupsDirty?"Save Follow-up Settings *":"Save Follow-up Settings"}if(E.refreshAll)E.refreshAll.disabled=S.load.upload||S.load.start||S.load.leads||S.load.campaign||S.load.settings;if(E.refreshLeads)E.refreshLeads.disabled=S.load.leads;if(E.refreshStatus)E.refreshStatus.disabled=S.load.campaign}
+    function render(){renderNotice();renderTop();renderFile();renderUpload();renderStats();renderFollowups();renderControl();renderMonitor();renderLeads();renderButtons();applyActiveView()}
     function initSidebarNav(){if(!E.sidebarNav)return;[...E.sidebarNav.querySelectorAll("[data-target]")].forEach(el=>{const go=()=>setActiveView(el.dataset.target);el.addEventListener("click",go);el.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();go()}})})}
-    function bind(){E.refreshAll.onclick=()=>refreshAll(true);E.refreshLeads.onclick=()=>loadLeads(true);E.refreshStatus.onclick=()=>loadCampaign(true);E.quickStartBtn.onclick=quickStart;E.uploadBtn.onclick=upload;E.startBtn.onclick=start;E.clearFile.onclick=()=>{S.file=null;E.fileInput.value="";render()};E.fileInput.onchange=e=>setFile(e.target.files&&e.target.files[0]?e.target.files[0]:null);E.search.oninput=e=>{S.search=e.target.value.trim().toLowerCase();renderLeads()};E.filters.onclick=e=>{const b=e.target.closest("[data-filter]");if(!b)return;S.filter=b.dataset.filter;renderLeads()};E.jumpUpload.onclick=()=>setActiveView("uploadPanel");E.jumpMonitor.onclick=()=>setActiveView("monitorPanel");E.sidebarToggle.onclick=()=>document.getElementById("sidebar").classList.toggle("open");["dragenter","dragover"].forEach(n=>E.drop.addEventListener(n,e=>{e.preventDefault();E.drop.classList.add("on")}));["dragleave","dragend","drop"].forEach(n=>E.drop.addEventListener(n,e=>{e.preventDefault();if(n==="drop"&&e.dataTransfer&&e.dataTransfer.files.length)setFile(e.dataTransfer.files[0]);E.drop.classList.remove("on")}));initSidebarNav()}
-    function init(){Object.assign(E,{refreshAll:$("refreshAll"),topChips:$("topChips"),jumpUpload:$("jumpUpload"),jumpMonitor:$("jumpMonitor"),sidebarNav:$("sidebarNav"),sidebarToggle:$("sidebarToggle"),stTotal:$("stTotal"),stPending:$("stPending"),stSent:$("stSent"),stAttention:$("stAttention"),stTotalNote:$("stTotalNote"),stPendingNote:$("stPendingNote"),stSentNote:$("stSentNote"),stAttentionNote:$("stAttentionNote"),notice:$("notice"),uploadChip:$("uploadChip"),drop:$("drop"),fileInput:$("fileInput"),fileName:$("fileName"),fileMeta:$("fileMeta"),clearFile:$("clearFile"),replace:$("replace"),require:$("require"),uploadBtn:$("uploadBtn"),quickStartBtn:$("quickStartBtn"),refreshLeads:$("refreshLeads"),uploadSummary:$("uploadSummary"),ignored:$("ignored"),campaignChip:$("campaignChip"),checks:$("checks"),context:$("context"),startBtn:$("startBtn"),refreshStatus:$("refreshStatus"),statusPill:$("statusPill"),metaChips:$("metaChips"),elapsed:$("elapsed"),progressPct:$("progressPct"),progressLabel:$("progressLabel"),progressCount:$("progressCount"),fill:$("fill"),mTotal:$("mTotal"),mProcessed:$("mProcessed"),mSent:$("mSent"),mSkipped:$("mSkipped"),mFailed:$("mFailed"),campaignMessage:$("campaignMessage"),leadChip:$("leadChip"),search:$("search"),filters:$("filters"),tableWrap:$("tableWrap"),tbody:$("tbody"),empty:$("empty")});bind();render();refreshAll(false)}
+    function bind(){E.refreshAll.onclick=()=>refreshAll(true);E.refreshLeads.onclick=()=>loadLeads(true);E.refreshStatus.onclick=()=>loadCampaign(true);E.quickStartBtn.onclick=quickStart;E.uploadBtn.onclick=upload;E.startBtn.onclick=start;E.saveFollowups.onclick=saveFollowups;if(E.followupsEnabled){E.followupsEnabled.addEventListener("change",markFollowupDraft)}if(E.followupBaseDate){E.followupBaseDate.onchange=handleFollowupBaseDateChanged}if(E.followup1Delay){E.followup1Delay.addEventListener("input",()=>{syncDatesFromDelays(1);markFollowupDraft()});E.followup1Delay.addEventListener("change",()=>{syncDatesFromDelays(1);markFollowupDraft()})}if(E.followup2Delay){E.followup2Delay.addEventListener("input",()=>{syncDatesFromDelays(2);markFollowupDraft()});E.followup2Delay.addEventListener("change",()=>{syncDatesFromDelays(2);markFollowupDraft()})}if(E.followup3Delay){E.followup3Delay.addEventListener("input",()=>{syncDatesFromDelays(3);markFollowupDraft()});E.followup3Delay.addEventListener("change",()=>{syncDatesFromDelays(3);markFollowupDraft()})}if(E.followup1Date){E.followup1Date.addEventListener("input",()=>{syncDelaysFromDates(1);markFollowupDraft()});E.followup1Date.addEventListener("change",()=>{syncDelaysFromDates(1);markFollowupDraft()})}if(E.followup2Date){E.followup2Date.addEventListener("input",()=>{syncDelaysFromDates(2);markFollowupDraft()});E.followup2Date.addEventListener("change",()=>{syncDelaysFromDates(2);markFollowupDraft()})}if(E.followup3Date){E.followup3Date.addEventListener("input",()=>{syncDelaysFromDates(3);markFollowupDraft()});E.followup3Date.addEventListener("change",()=>{syncDelaysFromDates(3);markFollowupDraft()})}E.clearFile.onclick=()=>{S.file=null;E.fileInput.value="";render()};E.fileInput.onchange=e=>setFile(e.target.files&&e.target.files[0]?e.target.files[0]:null);E.search.oninput=e=>{S.search=e.target.value.trim().toLowerCase();renderLeads()};E.filters.onclick=e=>{const b=e.target.closest("[data-filter]");if(!b)return;S.filter=b.dataset.filter;renderLeads()};E.jumpUpload.onclick=()=>setActiveView("uploadPanel");E.jumpMonitor.onclick=()=>setActiveView("monitorPanel");E.sidebarToggle.onclick=()=>document.getElementById("sidebar").classList.toggle("open");["dragenter","dragover"].forEach(n=>E.drop.addEventListener(n,e=>{e.preventDefault();E.drop.classList.add("on")}));["dragleave","dragend","drop"].forEach(n=>E.drop.addEventListener(n,e=>{e.preventDefault();if(n==="drop"&&e.dataTransfer&&e.dataTransfer.files.length)setFile(e.dataTransfer.files[0]);E.drop.classList.remove("on")}));initSidebarNav()}
+    function init(){Object.assign(E,{refreshAll:$("refreshAll"),topChips:$("topChips"),jumpUpload:$("jumpUpload"),jumpMonitor:$("jumpMonitor"),sidebarNav:$("sidebarNav"),sidebarToggle:$("sidebarToggle"),stTotal:$("stTotal"),stPending:$("stPending"),stSent:$("stSent"),stAttention:$("stAttention"),stTotalNote:$("stTotalNote"),stPendingNote:$("stPendingNote"),stSentNote:$("stSentNote"),stAttentionNote:$("stAttentionNote"),notice:$("notice"),uploadChip:$("uploadChip"),drop:$("drop"),fileInput:$("fileInput"),fileName:$("fileName"),fileMeta:$("fileMeta"),clearFile:$("clearFile"),replace:$("replace"),require:$("require"),uploadBtn:$("uploadBtn"),quickStartBtn:$("quickStartBtn"),refreshLeads:$("refreshLeads"),uploadSummary:$("uploadSummary"),ignored:$("ignored"),campaignChip:$("campaignChip"),checks:$("checks"),context:$("context"),startBtn:$("startBtn"),refreshStatus:$("refreshStatus"),followupsEnabled:$("followupsEnabled"),followupBaseDate:$("followupBaseDate"),followup1Delay:$("followup1Delay"),followup2Delay:$("followup2Delay"),followup3Delay:$("followup3Delay"),followup1Date:$("followup1Date"),followup2Date:$("followup2Date"),followup3Date:$("followup3Date"),followupSummary:$("followupSummary"),followupNote:$("followupNote"),saveFollowups:$("saveFollowups"),statusPill:$("statusPill"),metaChips:$("metaChips"),elapsed:$("elapsed"),progressPct:$("progressPct"),progressLabel:$("progressLabel"),progressCount:$("progressCount"),fill:$("fill"),mTotal:$("mTotal"),mProcessed:$("mProcessed"),mSent:$("mSent"),mSkipped:$("mSkipped"),mFailed:$("mFailed"),campaignMessage:$("campaignMessage"),leadChip:$("leadChip"),search:$("search"),filters:$("filters"),tableWrap:$("tableWrap"),tbody:$("tbody"),empty:$("empty")});if(!S.followupBaseDate)S.followupBaseDate=todayIsoDate();bind();render();refreshAll(false)}
     window.addEventListener("beforeunload",()=>{if(S.poll)clearInterval(S.poll)});
     document.addEventListener("DOMContentLoaded",init);
-    document.addEventListener("click",e=>{if(e.target&&e.target.id==="refreshLeads"){e.preventDefault();loadLeads(true);}});
+    document.addEventListener("click",e=>{if(e.target&&e.target.id==="refreshLeads"){e.preventDefault();loadLeads(true)}});
   </script>
 </body>
 </html>

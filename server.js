@@ -1,5 +1,4 @@
-// Fallback static file server (used only for local dev, not Vercel)
-// On Vercel: api/ functions handle /api/* and public/ serves the frontend.
+// Local development static file server
 const fs   = require("fs");
 const path = require("path");
 

@@ -4,9 +4,16 @@ import os
 import threading
 import time
 
-from backend.ai_engine import generate_cold_email
+from backend.ai_engine import generate_cold_email, generate_followup_email
 from backend.app.campaign_status import finish_campaign, record_campaign_progress
-from backend.app.crud import list_campaign_leads, update_lead_delivery
+from backend.app.crud import (
+    get_followup_settings,
+    get_thread_context,
+    list_outreach_queue,
+    record_outreach_failure,
+    record_outreach_skip,
+    record_outreach_success,
+)
 from backend.config import DELAY_BETWEEN_EMAILS, MAX_CONCURRENT_EMAILS
 from backend.env_utils import BASE_DIR, DATA_DIR
 from backend.smtp_sender import SMTPSender
@@ -28,43 +35,57 @@ def _parse_email_content(email_content):
     return subject, body
 
 
-def _deduplicate_leads(leads):
-    unique_leads = []
-    seen_emails = set()
+def _deduplicate_outreach(queue):
+    deduplicated = []
+    seen = set()
 
-    for row in leads:
+    for row in queue:
         email = (row.get("email") or "").strip().lower()
-        if not email or email in seen_emails:
+        touch_type = (row.get("touch_type") or "initial").strip().lower()
+        key = (email, touch_type)
+        if not email or key in seen:
             continue
 
-        normalized_row = dict(row)
-        normalized_row["email"] = email
-        unique_leads.append(normalized_row)
-        seen_emails.add(email)
+        normalized = dict(row)
+        normalized["email"] = email
+        deduplicated.append(normalized)
+        seen.add(key)
 
-    return unique_leads
+    return deduplicated
 
 
-def _load_leads(use_csv_fallback=True, only_unsent=True):
-    leads = list_campaign_leads(only_unsent=only_unsent)
+def _load_outreach_queue(use_csv_fallback=True):
+    settings = get_followup_settings()
+    queue = list_outreach_queue(settings)
+    if queue:
+        return _deduplicate_outreach(queue), settings
 
-    if not leads and use_csv_fallback:
-        try:
-            csv_path = DATA_DIR / "leads.csv"
-            if not csv_path.exists():
-                csv_path = BASE_DIR / "leads.csv"
-            with open(csv_path, encoding="utf-8") as file:
-                reader = csv.DictReader(file)
-                for row in reader:
-                    leads.append(row)
-        except FileNotFoundError:
-            print("No leads.csv file found and no leads in database")
-            return
-    elif not leads:
-        print("No leads found in database; campaign not started")
-        return
+    if not use_csv_fallback:
+        print("No pending leads or due follow-ups found in database")
+        return [], settings
 
-    return _deduplicate_leads(leads)
+    fallback_queue = []
+    try:
+        csv_path = DATA_DIR / "leads.csv"
+        if not csv_path.exists():
+            csv_path = BASE_DIR / "leads.csv"
+        with open(csv_path, encoding="utf-8") as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                fallback_queue.append(
+                    {
+                        **row,
+                        "id": None,
+                        "touch_number": 0,
+                        "touch_type": "initial",
+                        "scheduled_for": None,
+                    }
+                )
+    except FileNotFoundError:
+        print("No leads.csv file found and no outreach queue in database")
+        return [], settings
+
+    return _deduplicate_outreach(fallback_queue), settings
 
 
 def _split_chunks(items, chunk_count):
@@ -75,32 +96,67 @@ def _split_chunks(items, chunk_count):
     return [chunk for chunk in chunks if chunk]
 
 
-def _update_lead_delivery(email, *, last_status, last_error="", sent=False):
-    if not email:
+def _message_for_row(row):
+    touch_number = int(row.get("touch_number") or 0)
+    if touch_number <= 0:
+        return generate_cold_email(row)
+
+    thread_subject = (row.get("thread_subject") or "").strip()
+    return generate_followup_email(row, touch_number, thread_subject=thread_subject)
+
+
+def _record_success(row, *, subject, body, message_id, in_reply_to, settings):
+    lead_id = row.get("id")
+    if lead_id is None:
         return
 
     with _lead_update_lock:
-        update_lead_delivery(
-            email,
-            last_status=last_status,
-            last_error=last_error,
-            sent=sent,
+        record_outreach_success(
+            int(lead_id),
+            touch_type=row.get("touch_type") or "initial",
+            touch_number=int(row.get("touch_number") or 0),
+            subject=subject,
+            body=body,
+            message_id=message_id,
+            in_reply_to=in_reply_to,
+            scheduled_for=row.get("scheduled_for"),
+            settings=settings,
         )
 
 
-def _mark_lead_sent(email):
-    _update_lead_delivery(email, last_status="sent", last_error="", sent=True)
+def _record_failure(row, *, subject, error_message):
+    lead_id = row.get("id")
+    if lead_id is None:
+        return
+
+    with _lead_update_lock:
+        record_outreach_failure(
+            int(lead_id),
+            touch_type=row.get("touch_type") or "initial",
+            touch_number=int(row.get("touch_number") or 0),
+            subject=subject,
+            error_message=error_message,
+            scheduled_for=row.get("scheduled_for"),
+        )
 
 
-def _mark_lead_failed(email, error_message):
-    _update_lead_delivery(email, last_status="failed", last_error=error_message)
+def _record_skip(row, *, subject, reason):
+    lead_id = row.get("id")
+    if lead_id is None:
+        return
+
+    with _lead_update_lock:
+        record_outreach_skip(
+            int(lead_id),
+            touch_type=row.get("touch_type") or "initial",
+            touch_number=int(row.get("touch_number") or 0),
+            subject=subject,
+            reason=reason,
+            scheduled_for=row.get("scheduled_for"),
+        )
 
 
-def _mark_lead_skipped(email, reason):
-    _update_lead_delivery(email, last_status="skipped", last_error=reason)
-
-
-def _process_chunk(worker_id, rows):
+def _process_chunk(worker_id, rows, settings):
     sent = 0
     skipped = 0
     failed = 0
@@ -111,32 +167,63 @@ def _process_chunk(worker_id, rows):
         for row in rows:
             email = (row.get("email") or "").strip().lower()
             solution = (row.get("niche") or "").strip()
+            touch_type = row.get("touch_type") or "initial"
+            touch_number = int(row.get("touch_number") or 0)
+            default_subject = (
+                (row.get("thread_subject") or "").strip()
+                or f"{solution or 'Growth'} growth strategy for {(row.get('company') or 'your business').strip()}"
+            )
+
             if not solution:
                 skipped += 1
-                _mark_lead_skipped(email, "Missing solution/niche")
+                _record_skip(row, subject=default_subject, reason="Missing solution/niche")
                 record_campaign_progress(skipped=1)
                 print(f"[worker-{worker_id}] Skipped {email or 'unknown'}: missing solution/niche")
                 continue
 
+            thread_context = {"last_message_id": "", "references": []}
+            if touch_number > 0 and row.get("id") is not None:
+                thread_context = get_thread_context(int(row["id"]))
+                if thread_context.get("thread_subject") and not row.get("thread_subject"):
+                    row["thread_subject"] = thread_context["thread_subject"]
+
             try:
                 start_gen = time.perf_counter()
-                email_content = generate_cold_email(row)
+                email_content = _message_for_row(row)
                 gen_seconds += time.perf_counter() - start_gen
 
-                start_send = time.perf_counter()
                 subject, body = _parse_email_content(email_content)
-                sender.send(email, subject, body, _SENDER_NAME, _AGENCY_NAME)
+                reply_to_message_id = thread_context.get("last_message_id", "") if touch_number > 0 else ""
+                references = thread_context.get("references", []) if touch_number > 0 else []
+
+                start_send = time.perf_counter()
+                message_id = sender.send(
+                    email,
+                    subject,
+                    body,
+                    _SENDER_NAME,
+                    _AGENCY_NAME,
+                    reply_to_message_id=reply_to_message_id,
+                    references=references,
+                )
                 send_seconds += time.perf_counter() - start_send
 
-                _mark_lead_sent(email)
+                _record_success(
+                    row,
+                    subject=subject,
+                    body=body,
+                    message_id=message_id,
+                    in_reply_to=reply_to_message_id,
+                    settings=settings,
+                )
                 record_campaign_progress(sent=1)
                 sent += 1
-                print(f"[worker-{worker_id}] Email sent to: {email}")
+                print(f"[worker-{worker_id}] Sent {touch_type} to: {email}")
             except Exception as exc:
                 failed += 1
-                _mark_lead_failed(email, str(exc))
+                _record_failure(row, subject=default_subject, error_message=str(exc))
                 record_campaign_progress(failed=1)
-                print(f"[worker-{worker_id}] Failed {email or 'unknown'}: {exc}")
+                print(f"[worker-{worker_id}] Failed {touch_type} for {email or 'unknown'}: {exc}")
 
             if DELAY_BETWEEN_EMAILS > 0:
                 time.sleep(DELAY_BETWEEN_EMAILS)
@@ -151,14 +238,14 @@ def _process_chunk(worker_id, rows):
 
 
 def run_campaign(use_csv_fallback=True, only_unsent=True):
-    """Send generated cold emails to leads with parallel workers."""
-    leads = _load_leads(use_csv_fallback=use_csv_fallback, only_unsent=only_unsent)
-    if not leads:
-        finish_campaign(message="Campaign finished: no pending leads to send.")
+    """Send outreach items for new leads and any due follow-ups."""
+    queue, settings = _load_outreach_queue(use_csv_fallback=use_csv_fallback)
+    if not queue:
+        finish_campaign(message="Campaign finished: no pending leads or due follow-ups.")
         return
 
-    worker_count = max(1, min(MAX_CONCURRENT_EMAILS, len(leads)))
-    chunks = _split_chunks(leads, worker_count)
+    worker_count = max(1, min(MAX_CONCURRENT_EMAILS, len(queue)))
+    chunks = _split_chunks(queue, worker_count)
 
     started_at = time.perf_counter()
     total_sent = 0
@@ -168,7 +255,7 @@ def run_campaign(use_csv_fallback=True, only_unsent=True):
     total_send_seconds = 0.0
 
     if worker_count == 1:
-        result = _process_chunk(1, chunks[0])
+        result = _process_chunk(1, chunks[0], settings)
         total_sent += result["sent"]
         total_skipped += result["skipped"]
         total_failed += result["failed"]
@@ -177,7 +264,7 @@ def run_campaign(use_csv_fallback=True, only_unsent=True):
     else:
         with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = [
-                executor.submit(_process_chunk, idx + 1, chunk)
+                executor.submit(_process_chunk, idx + 1, chunk, settings)
                 for idx, chunk in enumerate(chunks)
             ]
             for future in concurrent.futures.as_completed(futures):

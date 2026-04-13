@@ -2,7 +2,6 @@
 
 A full-stack cold email automation platform built for B2B outreach. Upload a CSV of leads, generate personalised emails per industry, and send them via Gmail SMTP — all from a dark glassmorphic dashboard.
 
-**Live deployment:** Vercel (Node.js serverless)
 **Local backend:** Python + FastAPI + Uvicorn
 
 ---
@@ -16,7 +15,6 @@ A full-stack cold email automation platform built for B2B outreach. Upload a CSV
 - Gmail SMTP sending via port 465 SSL with auto-fallback to 587
 - Real-time campaign monitor — leads move from Pending → Sent live
 - Leads Workspace with search and status filters
-- Vercel serverless API (`/api/upload-leads`, `/api/send-emails`, `/api/campaign-status`)
 - Python FastAPI backend for local use with Ollama AI generation
 
 ---
@@ -25,17 +23,10 @@ A full-stack cold email automation platform built for B2B outreach. Upload a CSV
 
 ```
 /
-├── api/                        # Vercel serverless functions
-│   ├── upload-leads.js         # Parse CSV/XLSX, return leads[]
-│   ├── send-emails.js          # Send emails via Gmail SMTP
-│   └── campaign-status.js      # Campaign stats GET/POST
-├── public/                     # Vercel frontend
-│   ├── index.html              # Dashboard UI
-│   └── styles.css              # Dark glassmorphic styles
 ├── frontend/                   # Local Python server frontend
 │   ├── index.html
 │   └── styles.css
-├── backend/                    # Python FastAPI backend
+├── backend/
 │   ├── app/
 │   │   ├── main.py             # FastAPI routes
 │   │   ├── crud.py             # DB operations
@@ -47,12 +38,10 @@ A full-stack cold email automation platform built for B2B outreach. Upload a CSV
 │   ├── campaign_runner.py      # Parallel SMTP workers
 │   ├── smtp_sender.py          # SMTP connection + HTML builder
 │   ├── config.py               # Env config + validation
-│   └── env_utils.py            # .env loader
+│   ├── env_utils.py            # .env loader
+│   └── main.py                 # Entry point (--serve / --migrate)
 ├── data/
 │   └── leads.csv               # Sample leads
-├── main.py                     # Entry point (--serve / --migrate)
-├── package.json                # Node.js deps for Vercel
-├── vercel.json                 # Vercel deployment config
 └── .env                        # Local environment variables (gitignored)
 ```
 
@@ -87,10 +76,12 @@ SMTP_MAX_RETRIES=1
 **3. Run the server**
 
 ```bash
-python main.py --serve
+python -m backend.main --serve
 ```
 
 Open **http://localhost:8000**
+
+`python backend/main.py --serve` also works if you prefer the script path.
 
 ---
 
@@ -175,27 +166,6 @@ To add a new industry, edit `_BULLET_LIBRARY` in `backend/ai_engine.py`.
 **Upload options (form fields):**
 - `replace_existing` (default: `true`) — delete old leads before import
 - `require_solution` (default: `true`) — skip rows missing niche/solution
-
----
-
-## Vercel Deployment
-
-**1. Connect repo to Vercel**
-
-Import `https://github.com/harish-offl/automation---norml` on vercel.com → Framework: **Other**
-
-**2. Set environment variables in Vercel Dashboard → Settings → Environment Variables:**
-
-| Variable | Value |
-|----------|-------|
-| `EMAIL_ADDRESS` | your Gmail address |
-| `EMAIL_PASSWORD` | Gmail App Password |
-| `SMTP_SERVER` | smtp.gmail.com |
-| `SMTP_PORT` | 465 |
-| `SENDER_NAME` | Your Name |
-| `AGENCY_NAME` | Your Agency Name |
-
-**3. Deploy** — Vercel auto-deploys on every push to `main`.
 
 ---
 
