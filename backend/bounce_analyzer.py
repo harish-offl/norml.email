@@ -11,7 +11,7 @@ if __package__ in {None, ""}:
         sys.path.insert(0, project_root_str)
 
 from backend.app.crud import list_leads
-from backend.email_validator import classify_bounce
+from backend.email_quality import classify_bounce
 
 
 def analyze_bounces(days=7):

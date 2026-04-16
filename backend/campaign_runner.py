@@ -17,7 +17,7 @@ from backend.app.crud import (
     record_outreach_success,
 )
 from backend.config import DELAY_BETWEEN_EMAILS, MAX_CONCURRENT_EMAILS
-from backend.email_validator import (
+from backend.email_quality import (
     is_valid_email_format,
     is_disposable_email,
     should_skip_email,

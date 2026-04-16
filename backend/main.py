@@ -4,8 +4,12 @@ import sys
 from pathlib import Path
 
 if __package__ in {None, ""}:
-    project_root = Path(__file__).resolve().parent.parent
+    script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent
+    script_dir_str = str(script_dir)
     project_root_str = str(project_root)
+    while script_dir_str in sys.path:
+        sys.path.remove(script_dir_str)
     if project_root_str not in sys.path:
         sys.path.insert(0, project_root_str)
 
