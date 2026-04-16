@@ -8,7 +8,9 @@ from backend.env_utils import BASE_DIR, DATA_DIR, load_project_env
 
 TABLE_NAME = "app_lead"
 EMAIL_EVENT_TABLE = "app_lead_email_event"
+EMAIL_OPEN_TABLE = "app_lead_email_open_event"
 FOLLOWUP_SETTINGS_TABLE = "app_followup_settings"
+SENDER_PROFILE_TABLE = "app_sender_profile"
 
 DEFAULT_FOLLOWUP_SETTINGS = {
     "enabled": False,
@@ -18,6 +20,30 @@ DEFAULT_FOLLOWUP_SETTINGS = {
     "followup_1_date": None,
     "followup_2_date": None,
     "final_bump_date": None,
+}
+
+
+def _env_flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}
+
+
+DEFAULT_SENDER_PROFILE = {
+    "sender_name": os.getenv("SENDER_NAME", "Your Name").strip() or "Your Name",
+    "agency_name": os.getenv("AGENCY_NAME", "Your Company Name").strip() or "Your Company Name",
+    "website_url": os.getenv("WEBSITE_URL", "").strip(),
+    "tracking_base_url": os.getenv("TRACKING_BASE_URL", "").strip(),
+    "open_tracking_enabled": _env_flag("OPEN_TRACKING_ENABLED", False),
+    "reply_sync_enabled": _env_flag("REPLY_SYNC_ENABLED", True),
+    "warmup_enabled": _env_flag("WARMUP_ENABLED", False),
+    "warmup_status": (os.getenv("WARMUP_STATUS", "not_started").strip() or "not_started")[:32],
+    "daily_send_limit": max(1, int(os.getenv("DAILY_SEND_LIMIT", "25"))),
+    "daily_warmup_target": max(1, int(os.getenv("DAILY_WARMUP_TARGET", "40"))),
+    "deliverability_floor": max(50, min(100, int(os.getenv("DELIVERABILITY_FLOOR", "90")))),
+    "spam_guard_enabled": _env_flag("SPAM_GUARD_ENABLED", True),
+    "snov_workspace_url": os.getenv("SNOV_WORKSPACE_URL", "").strip(),
 }
 
 
@@ -110,6 +136,11 @@ def initialize_database() -> None:
         _ensure_column(connection, TABLE_NAME, "sequence_completed_at", "sequence_completed_at DATETIME NULL")
         _ensure_column(connection, TABLE_NAME, "thread_subject", "thread_subject TEXT NOT NULL DEFAULT ''")
         _ensure_column(connection, TABLE_NAME, "last_message_id", "last_message_id TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, TABLE_NAME, "first_open_at", "first_open_at DATETIME NULL")
+        _ensure_column(connection, TABLE_NAME, "last_open_at", "last_open_at DATETIME NULL")
+        _ensure_column(connection, TABLE_NAME, "open_count", "open_count INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(connection, TABLE_NAME, "reply_type", "reply_type TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, TABLE_NAME, "reply_summary", "reply_summary TEXT NOT NULL DEFAULT ''")
 
         connection.execute(
             f"""
@@ -125,9 +156,42 @@ def initialize_database() -> None:
                 status VARCHAR(20) NOT NULL DEFAULT 'pending',
                 message_id TEXT NOT NULL DEFAULT '',
                 in_reply_to TEXT NOT NULL DEFAULT '',
+                tracking_token TEXT NOT NULL DEFAULT '',
+                first_open_at DATETIME NULL,
+                last_open_at DATETIME NULL,
+                open_count INTEGER NOT NULL DEFAULT 0,
+                copy_quality_score INTEGER NOT NULL DEFAULT 100,
+                copy_quality_flags TEXT NOT NULL DEFAULT '',
+                reply_type TEXT NOT NULL DEFAULT '',
+                reply_summary TEXT NOT NULL DEFAULT '',
                 error TEXT NOT NULL DEFAULT '',
                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (lead_id) REFERENCES {TABLE_NAME}(id) ON DELETE CASCADE
+            )
+            """
+        )
+        _ensure_column(connection, EMAIL_EVENT_TABLE, "tracking_token", "tracking_token TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, EMAIL_EVENT_TABLE, "first_open_at", "first_open_at DATETIME NULL")
+        _ensure_column(connection, EMAIL_EVENT_TABLE, "last_open_at", "last_open_at DATETIME NULL")
+        _ensure_column(connection, EMAIL_EVENT_TABLE, "open_count", "open_count INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(connection, EMAIL_EVENT_TABLE, "copy_quality_score", "copy_quality_score INTEGER NOT NULL DEFAULT 100")
+        _ensure_column(connection, EMAIL_EVENT_TABLE, "copy_quality_flags", "copy_quality_flags TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, EMAIL_EVENT_TABLE, "reply_type", "reply_type TEXT NOT NULL DEFAULT ''")
+        _ensure_column(connection, EMAIL_EVENT_TABLE, "reply_summary", "reply_summary TEXT NOT NULL DEFAULT ''")
+
+        connection.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {EMAIL_OPEN_TABLE} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                lead_id INTEGER NOT NULL,
+                email_event_id INTEGER NOT NULL,
+                tracking_token TEXT NOT NULL DEFAULT '',
+                opened_at DATETIME NOT NULL,
+                remote_addr TEXT NOT NULL DEFAULT '',
+                user_agent TEXT NOT NULL DEFAULT '',
+                viewer_fingerprint TEXT NOT NULL DEFAULT '',
+                FOREIGN KEY (lead_id) REFERENCES {TABLE_NAME}(id) ON DELETE CASCADE,
+                FOREIGN KEY (email_event_id) REFERENCES {EMAIL_EVENT_TABLE}(id) ON DELETE CASCADE
             )
             """
         )
@@ -150,6 +214,30 @@ def initialize_database() -> None:
         _ensure_column(connection, FOLLOWUP_SETTINGS_TABLE, "followup_1_date", "followup_1_date TEXT NULL")
         _ensure_column(connection, FOLLOWUP_SETTINGS_TABLE, "followup_2_date", "followup_2_date TEXT NULL")
         _ensure_column(connection, FOLLOWUP_SETTINGS_TABLE, "final_bump_date", "final_bump_date TEXT NULL")
+
+        connection.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {SENDER_PROFILE_TABLE} (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                sender_name TEXT NOT NULL DEFAULT '',
+                agency_name TEXT NOT NULL DEFAULT '',
+                website_url TEXT NOT NULL DEFAULT '',
+                tracking_base_url TEXT NOT NULL DEFAULT '',
+                open_tracking_enabled INTEGER NOT NULL DEFAULT 0,
+                reply_sync_enabled INTEGER NOT NULL DEFAULT 1,
+                warmup_enabled INTEGER NOT NULL DEFAULT 0,
+                warmup_status TEXT NOT NULL DEFAULT 'not_started',
+                daily_send_limit INTEGER NOT NULL DEFAULT 25,
+                daily_warmup_target INTEGER NOT NULL DEFAULT 40,
+                deliverability_floor INTEGER NOT NULL DEFAULT 90,
+                spam_guard_enabled INTEGER NOT NULL DEFAULT 1,
+                snov_workspace_url TEXT NOT NULL DEFAULT '',
+                last_reply_sync_at DATETIME NULL,
+                last_deliverability_check_at DATETIME NULL,
+                updated_at DATETIME NULL
+            )
+            """
+        )
         connection.execute(
             f"""
             INSERT INTO {FOLLOWUP_SETTINGS_TABLE} (
@@ -174,6 +262,45 @@ def initialize_database() -> None:
                 DEFAULT_FOLLOWUP_SETTINGS["followup_1_date"],
                 DEFAULT_FOLLOWUP_SETTINGS["followup_2_date"],
                 DEFAULT_FOLLOWUP_SETTINGS["final_bump_date"],
+                _utcnow_iso(),
+            ),
+        )
+        connection.execute(
+            f"""
+            INSERT INTO {SENDER_PROFILE_TABLE} (
+                id,
+                sender_name,
+                agency_name,
+                website_url,
+                tracking_base_url,
+                open_tracking_enabled,
+                reply_sync_enabled,
+                warmup_enabled,
+                warmup_status,
+                daily_send_limit,
+                daily_warmup_target,
+                deliverability_floor,
+                spam_guard_enabled,
+                snov_workspace_url,
+                updated_at
+            )
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO NOTHING
+            """,
+            (
+                DEFAULT_SENDER_PROFILE["sender_name"],
+                DEFAULT_SENDER_PROFILE["agency_name"],
+                DEFAULT_SENDER_PROFILE["website_url"],
+                DEFAULT_SENDER_PROFILE["tracking_base_url"],
+                int(DEFAULT_SENDER_PROFILE["open_tracking_enabled"]),
+                int(DEFAULT_SENDER_PROFILE["reply_sync_enabled"]),
+                int(DEFAULT_SENDER_PROFILE["warmup_enabled"]),
+                DEFAULT_SENDER_PROFILE["warmup_status"],
+                DEFAULT_SENDER_PROFILE["daily_send_limit"],
+                DEFAULT_SENDER_PROFILE["daily_warmup_target"],
+                DEFAULT_SENDER_PROFILE["deliverability_floor"],
+                int(DEFAULT_SENDER_PROFILE["spam_guard_enabled"]),
+                DEFAULT_SENDER_PROFILE["snov_workspace_url"],
                 _utcnow_iso(),
             ),
         )
@@ -230,4 +357,14 @@ def initialize_database() -> None:
         )
         connection.execute(
             f"CREATE INDEX IF NOT EXISTS idx_{EMAIL_EVENT_TABLE}_sent_at ON {EMAIL_EVENT_TABLE}(sent_at)"
+        )
+        connection.execute(
+            f"CREATE UNIQUE INDEX IF NOT EXISTS idx_{EMAIL_EVENT_TABLE}_tracking_token "
+            f"ON {EMAIL_EVENT_TABLE}(tracking_token) WHERE tracking_token != ''"
+        )
+        connection.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{EMAIL_OPEN_TABLE}_lead_id ON {EMAIL_OPEN_TABLE}(lead_id)"
+        )
+        connection.execute(
+            f"CREATE INDEX IF NOT EXISTS idx_{EMAIL_OPEN_TABLE}_opened_at ON {EMAIL_OPEN_TABLE}(opened_at)"
         )

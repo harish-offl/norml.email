@@ -1,13 +1,15 @@
 import concurrent.futures
 import csv
 import os
+import secrets
 import threading
 import time
 
-from backend.ai_engine import generate_cold_email, generate_followup_email
+from backend.ai_engine import assess_email_quality, generate_cold_email, generate_followup_email
 from backend.app.campaign_status import finish_campaign, record_campaign_progress
 from backend.app.crud import (
     get_followup_settings,
+    get_sender_profile,
     get_thread_context,
     list_outreach_queue,
     record_outreach_failure,
@@ -102,16 +104,42 @@ def _split_chunks(items, chunk_count):
     return [chunk for chunk in chunks if chunk]
 
 
-def _message_for_row(row):
+def _sender_name(profile):
+    return (profile.get("sender_name") or _SENDER_NAME).strip()
+
+
+def _agency_name(profile):
+    return (profile.get("agency_name") or _AGENCY_NAME).strip()
+
+
+def _tracking_pixel_url(profile, tracking_token):
+    base_url = str(profile.get("tracking_base_url") or "").strip().rstrip("/")
+    if not tracking_token or not base_url or not profile.get("open_tracking_enabled"):
+        return ""
+    return f"{base_url}/t/{tracking_token}.gif"
+
+
+def _message_for_row(row, sender_profile):
     touch_number = int(row.get("touch_number") or 0)
     if touch_number <= 0:
-        return generate_cold_email(row)
+        return generate_cold_email(row, sender_profile=sender_profile)
 
     thread_subject = (row.get("thread_subject") or "").strip()
-    return generate_followup_email(row, touch_number, thread_subject=thread_subject)
+    return generate_followup_email(row, touch_number, thread_subject=thread_subject, sender_profile=sender_profile)
 
 
-def _record_success(row, *, subject, body, message_id, in_reply_to, settings):
+def _record_success(
+    row,
+    *,
+    subject,
+    body,
+    message_id,
+    in_reply_to,
+    tracking_token,
+    copy_quality_score,
+    copy_quality_flags,
+    settings,
+):
     lead_id = row.get("id")
     if lead_id is None:
         return
@@ -125,6 +153,9 @@ def _record_success(row, *, subject, body, message_id, in_reply_to, settings):
             body=body,
             message_id=message_id,
             in_reply_to=in_reply_to,
+            tracking_token=tracking_token,
+            copy_quality_score=copy_quality_score,
+            copy_quality_flags=copy_quality_flags,
             scheduled_for=row.get("scheduled_for"),
             settings=settings,
         )
@@ -162,7 +193,7 @@ def _record_skip(row, *, subject, reason):
         )
 
 
-def _process_chunk(worker_id, rows, settings):
+def _process_chunk(worker_id, rows, settings, sender_profile):
     sent = 0
     skipped = 0
     failed = 0
@@ -204,22 +235,38 @@ def _process_chunk(worker_id, rows, settings):
 
             try:
                 start_gen = time.perf_counter()
-                email_content = _message_for_row(row)
+                email_content = _message_for_row(row, sender_profile)
                 gen_seconds += time.perf_counter() - start_gen
 
                 subject, body = _parse_email_content(email_content)
                 reply_to_message_id = thread_context.get("last_message_id", "") if touch_number > 0 else ""
                 references = thread_context.get("references", []) if touch_number > 0 else []
+                tracking_token = (
+                    secrets.token_urlsafe(18)
+                    if sender_profile.get("open_tracking_enabled") and sender_profile.get("tracking_base_url")
+                    else ""
+                )
+                quality = assess_email_quality(subject, body)
+                if sender_profile.get("spam_guard_enabled") and int(quality["score"]) < 60:
+                    skipped += 1
+                    reason = "Spam guard blocked send"
+                    if quality["flags"]:
+                        reason = f"{reason}: {', '.join(quality['flags'])}"
+                    _record_skip(row, subject=subject, reason=reason)
+                    record_campaign_progress(skipped=1)
+                    print(f"[worker-{worker_id}] Skipped {email or 'unknown'}: {reason}")
+                    continue
 
                 start_send = time.perf_counter()
                 message_id = sender.send(
                     email,
                     subject,
                     body,
-                    _SENDER_NAME,
-                    _AGENCY_NAME,
+                    _sender_name(sender_profile),
+                    _agency_name(sender_profile),
                     reply_to_message_id=reply_to_message_id,
                     references=references,
+                    tracking_pixel_url=_tracking_pixel_url(sender_profile, tracking_token),
                 )
                 send_seconds += time.perf_counter() - start_send
 
@@ -229,6 +276,9 @@ def _process_chunk(worker_id, rows, settings):
                     body=body,
                     message_id=message_id,
                     in_reply_to=reply_to_message_id,
+                    tracking_token=tracking_token,
+                    copy_quality_score=int(quality["score"]),
+                    copy_quality_flags=",".join(quality["flags"]),
                     settings=settings,
                 )
                 record_campaign_progress(sent=1)
@@ -260,6 +310,7 @@ def _process_chunk(worker_id, rows, settings):
 def run_campaign(use_csv_fallback=True, only_unsent=True):
     """Send outreach items for new leads and any due follow-ups."""
     queue, settings = _load_outreach_queue(use_csv_fallback=use_csv_fallback)
+    sender_profile = get_sender_profile()
     if not queue:
         finish_campaign(message="Campaign finished: no pending leads or due follow-ups.")
         return
@@ -275,7 +326,7 @@ def run_campaign(use_csv_fallback=True, only_unsent=True):
     total_send_seconds = 0.0
 
     if worker_count == 1:
-        result = _process_chunk(1, chunks[0], settings)
+        result = _process_chunk(1, chunks[0], settings, sender_profile)
         total_sent += result["sent"]
         total_skipped += result["skipped"]
         total_failed += result["failed"]
@@ -284,7 +335,7 @@ def run_campaign(use_csv_fallback=True, only_unsent=True):
     else:
         with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
             futures = [
-                executor.submit(_process_chunk, idx + 1, chunk, settings)
+                executor.submit(_process_chunk, idx + 1, chunk, settings, sender_profile)
                 for idx, chunk in enumerate(chunks)
             ]
             for future in concurrent.futures.as_completed(futures):

@@ -22,3 +22,8 @@ class Lead:
     sequence_completed_at: str | None = None
     thread_subject: str = ""
     last_message_id: str = ""
+    first_open_at: str | None = None
+    last_open_at: str | None = None
+    open_count: int = 0
+    reply_type: str = ""
+    reply_summary: str = ""

@@ -26,6 +26,11 @@ class LeadRead(LeadCreate):
     sequence_completed_at: Optional[str] = None
     thread_subject: str = ""
     last_message_id: str = ""
+    first_open_at: Optional[str] = None
+    last_open_at: Optional[str] = None
+    open_count: int = 0
+    reply_type: str = ""
+    reply_summary: str = ""
 
 
 class FollowupSettingsUpdate(BaseModel):
@@ -43,3 +48,24 @@ class FollowupSettingsRead(FollowupSettingsUpdate):
     scheduled_count: int = 0
     active_count: int = 0
     next_due_at: Optional[str] = None
+
+
+class SenderProfileUpdate(BaseModel):
+    sender_name: Optional[str] = None
+    agency_name: Optional[str] = None
+    website_url: Optional[str] = None
+    tracking_base_url: Optional[str] = None
+    open_tracking_enabled: Optional[bool] = None
+    reply_sync_enabled: Optional[bool] = None
+    warmup_enabled: Optional[bool] = None
+    warmup_status: Optional[str] = None
+    daily_send_limit: Optional[int] = Field(default=None, ge=1, le=500)
+    daily_warmup_target: Optional[int] = Field(default=None, ge=1, le=500)
+    deliverability_floor: Optional[int] = Field(default=None, ge=50, le=100)
+    spam_guard_enabled: Optional[bool] = None
+    snov_workspace_url: Optional[str] = None
+
+
+class ReplySyncRequest(BaseModel):
+    limit: int = Field(default=50, ge=1, le=500)
+    unread_only: bool = True

@@ -6,7 +6,7 @@ import logging
 import re
 import threading
 
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -24,21 +24,32 @@ from backend.app.crud import (
     create_lead,
     get_followup_settings,
     get_lead_by_email,
+    get_report_overview,
+    get_sender_profile,
     leads_exist,
     list_leads,
+    record_open_event,
+    update_sender_profile,
     update_followup_settings,
 )
 from backend.app.database import initialize_database
-from backend.app.schemas import FollowupSettingsUpdate, LeadCreate
+from backend.app.schemas import FollowupSettingsUpdate, LeadCreate, ReplySyncRequest, SenderProfileUpdate
 from backend.campaign_runner import run_campaign
 from backend.config import get_missing_smtp_settings, smtp_preflight_test
 from backend.env_utils import BASE_DIR
+from backend.reply_sync import sync_mailbox_replies
 
 
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AI Email Automation")
 app.mount("/frontend", StaticFiles(directory=str(BASE_DIR / "frontend")), name="frontend")
+
+TRACKING_PIXEL_BYTES = (
+    b"GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff"
+    b"\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00"
+    b"\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+)
 
 
 CSV_FIELD_ALIASES = {
@@ -234,6 +245,50 @@ def campaign_status():
     return get_campaign_status_snapshot()
 
 
+@app.get("/api/reports/overview/")
+def reports_overview(days: int = 30):
+    return get_report_overview(days=days)
+
+
+@app.get("/api/sender/profile/")
+def sender_profile():
+    return get_sender_profile()
+
+
+@app.post("/api/sender/profile/")
+def update_sender_profile_endpoint(payload: SenderProfileUpdate):
+    try:
+        return update_sender_profile(payload.model_dump(exclude_none=True))
+    except ValueError as exc:
+        return _error(str(exc), 400)
+
+
+@app.post("/api/replies/sync/")
+def sync_replies(payload: ReplySyncRequest):
+    try:
+        return sync_mailbox_replies(limit=payload.limit, unread_only=payload.unread_only)
+    except RuntimeError as exc:
+        return _error(str(exc), 400)
+
+
+@app.get("/t/{token}.gif", include_in_schema=False)
+def track_email_open(token: str, request: Request):
+    record_open_event(
+        token,
+        remote_addr=(request.client.host if request.client else ""),
+        user_agent=request.headers.get("user-agent", ""),
+    )
+    return Response(
+        content=TRACKING_PIXEL_BYTES,
+        media_type="image/gif",
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
+
+
 @app.get("/api/followups/settings/")
 def get_followup_settings_endpoint():
     return get_followup_settings()
@@ -264,7 +319,14 @@ def update_followup_settings_endpoint_compat(payload: FollowupSettingsUpdate):
 def frontend_view():
     frontend_path = BASE_DIR / "frontend" / "index.html"
     if frontend_path.exists():
-        return FileResponse(frontend_path)
+        return FileResponse(
+            frontend_path,
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
     return _error("Frontend not found", 404)
 
 

@@ -1,9 +1,14 @@
 from datetime import date, datetime, time, timedelta, timezone
+from urllib.parse import urlparse
 
+from backend.config import get_sender_identity_defaults
 from backend.app.database import (
+    DEFAULT_SENDER_PROFILE,
     DEFAULT_FOLLOWUP_SETTINGS,
     EMAIL_EVENT_TABLE,
+    EMAIL_OPEN_TABLE,
     FOLLOWUP_SETTINGS_TABLE,
+    SENDER_PROFILE_TABLE,
     TABLE_NAME,
     get_connection,
     initialize_database,
@@ -81,7 +86,8 @@ def _lead_select_fields() -> str:
     return (
         "id, name, email, niche, industry, phone, company, sent_at, last_status, last_error, "
         "last_contacted_at, next_followup_at, followup_count, sequence_status, "
-        "reply_received_at, opt_out_at, sequence_completed_at, thread_subject, last_message_id"
+        "reply_received_at, opt_out_at, sequence_completed_at, thread_subject, last_message_id, "
+        "first_open_at, last_open_at, open_count, reply_type, reply_summary"
     )
 
 
@@ -513,7 +519,12 @@ def bulk_store_leads(rows: list[dict], *, replace_existing: bool) -> tuple[int, 
                             opt_out_at = NULL,
                             sequence_completed_at = NULL,
                             thread_subject = '',
-                            last_message_id = ''
+                            last_message_id = '',
+                            first_open_at = NULL,
+                            last_open_at = NULL,
+                            open_count = 0,
+                            reply_type = '',
+                            reply_summary = ''
                         WHERE id = ?
                         """,
                         (
@@ -650,6 +661,9 @@ def record_outreach_success(
     body: str,
     message_id: str,
     in_reply_to: str = "",
+    tracking_token: str = "",
+    copy_quality_score: int = 100,
+    copy_quality_flags: str = "",
     scheduled_for: str | None = None,
     settings: dict | None = None,
 ) -> None:
@@ -687,9 +701,12 @@ def record_outreach_success(
                 status,
                 message_id,
                 in_reply_to,
+                tracking_token,
+                copy_quality_score,
+                copy_quality_flags,
                 error
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'sent', ?, ?, '')
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'sent', ?, ?, ?, ?, ?, '')
             """,
             (
                 lead_id,
@@ -701,6 +718,9 @@ def record_outreach_success(
                 now_iso,
                 message_id,
                 in_reply_to,
+                tracking_token,
+                max(0, min(100, int(copy_quality_score or 0))),
+                (copy_quality_flags or "")[:1000],
             ),
         )
         connection.execute(
@@ -905,3 +925,732 @@ def _normalize_lead_payload(lead_data: dict) -> dict:
 
     normalized["email"] = normalized["email"].lower()
     return normalized
+
+
+def _bool_value(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value or "").strip().lower() not in {"", "0", "false", "no", "off"}
+
+
+def _safe_int(value, default: int, minimum: int, maximum: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(minimum, min(maximum, parsed))
+
+
+def _clean_text(value, default: str = "", maximum: int = 255) -> str:
+    text = str(default if value is None else value).strip()
+    return text[:maximum]
+
+
+def _normalize_url(value, *, allow_empty: bool = True) -> str:
+    text = _clean_text(value, "", 1000)
+    if not text:
+        if allow_empty:
+            return ""
+        raise ValueError("URL is required.")
+
+    candidate = text if "://" in text else f"https://{text}"
+    parsed = urlparse(candidate)
+    if not parsed.scheme or not parsed.netloc:
+        raise ValueError(f"Invalid URL: {text}")
+    normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path or ''}"
+    if parsed.query:
+        normalized = f"{normalized}?{parsed.query}"
+    return normalized.rstrip("/")
+
+
+def _read_sender_profile(connection) -> dict:
+    identity_defaults = get_sender_identity_defaults()
+    base = {**DEFAULT_SENDER_PROFILE, **identity_defaults}
+    row = connection.execute(
+        f"""
+        SELECT
+            sender_name,
+            agency_name,
+            website_url,
+            tracking_base_url,
+            open_tracking_enabled,
+            reply_sync_enabled,
+            warmup_enabled,
+            warmup_status,
+            daily_send_limit,
+            daily_warmup_target,
+            deliverability_floor,
+            spam_guard_enabled,
+            snov_workspace_url,
+            last_reply_sync_at,
+            last_deliverability_check_at,
+            updated_at
+        FROM {SENDER_PROFILE_TABLE}
+        WHERE id = 1
+        """
+    ).fetchone()
+
+    if row:
+        base.update(
+            {
+                "sender_name": row["sender_name"] or base["sender_name"],
+                "agency_name": row["agency_name"] or base["agency_name"],
+                "website_url": row["website_url"] or "",
+                "tracking_base_url": row["tracking_base_url"] or "",
+                "open_tracking_enabled": bool(row["open_tracking_enabled"]),
+                "reply_sync_enabled": bool(row["reply_sync_enabled"]),
+                "warmup_enabled": bool(row["warmup_enabled"]),
+                "warmup_status": row["warmup_status"] or base["warmup_status"],
+                "daily_send_limit": int(row["daily_send_limit"]),
+                "daily_warmup_target": int(row["daily_warmup_target"]),
+                "deliverability_floor": int(row["deliverability_floor"]),
+                "spam_guard_enabled": bool(row["spam_guard_enabled"]),
+                "snov_workspace_url": row["snov_workspace_url"] or "",
+                "last_reply_sync_at": row["last_reply_sync_at"] or None,
+                "last_deliverability_check_at": row["last_deliverability_check_at"] or None,
+                "updated_at": row["updated_at"] or None,
+            }
+        )
+    else:
+        base.update(
+            {
+                "last_reply_sync_at": None,
+                "last_deliverability_check_at": None,
+                "updated_at": None,
+            }
+        )
+
+    base["tracking_base_url"] = _normalize_url(base.get("tracking_base_url"), allow_empty=True) if base.get("tracking_base_url") else ""
+    base["website_url"] = _normalize_url(base.get("website_url"), allow_empty=True) if base.get("website_url") else ""
+    base["snov_workspace_url"] = _normalize_url(base.get("snov_workspace_url"), allow_empty=True) if base.get("snov_workspace_url") else ""
+    return base
+
+
+def _normalize_sender_profile_payload(payload: dict, current: dict) -> dict:
+    base = {**current}
+    normalized = {
+        "sender_name": _clean_text(payload.get("sender_name", base["sender_name"]), base["sender_name"], 120),
+        "agency_name": _clean_text(payload.get("agency_name", base["agency_name"]), base["agency_name"], 120),
+        "website_url": _normalize_url(payload.get("website_url", base.get("website_url", "")), allow_empty=True),
+        "tracking_base_url": _normalize_url(payload.get("tracking_base_url", base.get("tracking_base_url", "")), allow_empty=True),
+        "open_tracking_enabled": _bool_value(payload.get("open_tracking_enabled", base["open_tracking_enabled"])),
+        "reply_sync_enabled": _bool_value(payload.get("reply_sync_enabled", base["reply_sync_enabled"])),
+        "warmup_enabled": _bool_value(payload.get("warmup_enabled", base["warmup_enabled"])),
+        "warmup_status": _clean_text(payload.get("warmup_status", base["warmup_status"]), base["warmup_status"], 32).lower() or "not_started",
+        "daily_send_limit": _safe_int(payload.get("daily_send_limit", base["daily_send_limit"]), int(base["daily_send_limit"]), 1, 500),
+        "daily_warmup_target": _safe_int(payload.get("daily_warmup_target", base["daily_warmup_target"]), int(base["daily_warmup_target"]), 1, 500),
+        "deliverability_floor": _safe_int(payload.get("deliverability_floor", base["deliverability_floor"]), int(base["deliverability_floor"]), 50, 100),
+        "spam_guard_enabled": _bool_value(payload.get("spam_guard_enabled", base["spam_guard_enabled"])),
+        "snov_workspace_url": _normalize_url(payload.get("snov_workspace_url", base.get("snov_workspace_url", "")), allow_empty=True),
+    }
+    return normalized
+
+
+def _rate(part: int, whole: int) -> float:
+    if whole <= 0:
+        return 0.0
+    return round((part / whole) * 100, 1)
+
+
+def _sender_health(connection, profile: dict) -> dict:
+    cutoff = (_now() - timedelta(days=14)).isoformat()
+    recent_row = connection.execute(
+        f"""
+        SELECT
+            SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS sent_count,
+            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_count,
+            AVG(CASE WHEN status = 'sent' THEN copy_quality_score END) AS avg_copy_score
+        FROM {EMAIL_EVENT_TABLE}
+        WHERE COALESCE(sent_at, created_at) >= ?
+        """,
+        (cutoff,),
+    ).fetchone()
+    today_sent_row = connection.execute(
+        f"""
+        SELECT COUNT(*) AS count
+        FROM {EMAIL_EVENT_TABLE}
+        WHERE status = 'sent'
+          AND substr(COALESCE(sent_at, created_at), 1, 10) = ?
+        """,
+        (date.today().isoformat(),),
+    ).fetchone()
+
+    sent_count = int((recent_row["sent_count"] if recent_row else 0) or 0)
+    failed_count = int((recent_row["failed_count"] if recent_row else 0) or 0)
+    avg_copy_score = float((recent_row["avg_copy_score"] if recent_row else 100) or 100)
+    today_sent = int((today_sent_row["count"] if today_sent_row else 0) or 0)
+
+    score = 100
+    notes = []
+
+    if profile.get("warmup_enabled") and profile.get("warmup_status") not in {"ready", "stable"}:
+        score -= 12
+        notes.append("Mailbox warmup is still in progress.")
+    if profile.get("open_tracking_enabled") and not profile.get("tracking_base_url"):
+        score -= 18
+        notes.append("Open tracking is enabled but tracking URL is missing.")
+    if not profile.get("website_url"):
+        score -= 6
+        notes.append("Website URL is missing from sender profile.")
+    if profile.get("reply_sync_enabled") and not profile.get("last_reply_sync_at"):
+        score -= 8
+        notes.append("Reply sync has not run yet.")
+    elif profile.get("reply_sync_enabled"):
+        last_sync = _parse_datetime(profile.get("last_reply_sync_at"))
+        if last_sync and (_now() - last_sync) > timedelta(days=3):
+            score -= 6
+            notes.append("Reply sync is stale.")
+    if sent_count and failed_count / sent_count > 0.08:
+        score -= 20
+        notes.append("Recent failure rate is above 8 percent.")
+    if today_sent > int(profile.get("daily_send_limit") or 25):
+        score -= 10
+        notes.append("Today's send volume is above the sender limit.")
+    if avg_copy_score < 85:
+        score -= 10
+        notes.append("Spam guard score is trending low.")
+
+    score = max(0, min(100, score))
+    status = "healthy"
+    if profile.get("warmup_enabled") and profile.get("warmup_status") not in {"ready", "stable"}:
+        status = "warming"
+    if score < 70:
+        status = "at_risk"
+    if score < 50:
+        status = "blocked"
+
+    if not notes:
+        notes.append("Sender profile looks stable for the last 14 days.")
+
+    return {
+        "health_status": status,
+        "health_score": score,
+        "health_notes": notes[:4],
+        "today_sent": today_sent,
+        "avg_copy_score": round(avg_copy_score, 1),
+    }
+
+
+def get_sender_profile() -> dict:
+    with get_connection() as connection:
+        profile = _read_sender_profile(connection)
+        profile.update(_sender_health(connection, profile))
+    return profile
+
+
+def update_sender_profile(payload: dict) -> dict:
+    with get_connection() as connection:
+        current = _read_sender_profile(connection)
+        profile = _normalize_sender_profile_payload(payload or {}, current)
+        connection.execute(
+            f"""
+            UPDATE {SENDER_PROFILE_TABLE}
+            SET sender_name = ?,
+                agency_name = ?,
+                website_url = ?,
+                tracking_base_url = ?,
+                open_tracking_enabled = ?,
+                reply_sync_enabled = ?,
+                warmup_enabled = ?,
+                warmup_status = ?,
+                daily_send_limit = ?,
+                daily_warmup_target = ?,
+                deliverability_floor = ?,
+                spam_guard_enabled = ?,
+                snov_workspace_url = ?,
+                updated_at = ?
+            WHERE id = 1
+            """,
+            (
+                profile["sender_name"],
+                profile["agency_name"],
+                profile["website_url"],
+                profile["tracking_base_url"],
+                int(profile["open_tracking_enabled"]),
+                int(profile["reply_sync_enabled"]),
+                int(profile["warmup_enabled"]),
+                profile["warmup_status"],
+                profile["daily_send_limit"],
+                profile["daily_warmup_target"],
+                profile["deliverability_floor"],
+                int(profile["spam_guard_enabled"]),
+                profile["snov_workspace_url"],
+                _now_iso(),
+            ),
+        )
+
+        updated = _read_sender_profile(connection)
+        updated.update(_sender_health(connection, updated))
+    return updated
+
+
+def record_reply_sync_completed() -> None:
+    with get_connection() as connection:
+        connection.execute(
+            f"""
+            UPDATE {SENDER_PROFILE_TABLE}
+            SET last_reply_sync_at = ?,
+                updated_at = ?
+            WHERE id = 1
+            """,
+            (_now_iso(), _now_iso()),
+        )
+
+
+def record_open_event(tracking_token: str, *, remote_addr: str = "", user_agent: str = "") -> dict | None:
+    token = _clean_text(tracking_token, "", 255)
+    if not token:
+        return None
+
+    now_iso = _now_iso()
+    remote_addr_text = _clean_text(remote_addr, "", 120)
+    user_agent_text = _clean_text(user_agent, "", 255)
+    fingerprint = _clean_text(f"{remote_addr_text}|{user_agent_text}".lower(), "", 400)
+
+    with get_connection() as connection:
+        row = connection.execute(
+            f"""
+            SELECT e.id AS email_event_id, e.lead_id
+            FROM {EMAIL_EVENT_TABLE} e
+            WHERE e.tracking_token = ?
+            LIMIT 1
+            """,
+            (token,),
+        ).fetchone()
+        if not row:
+            return None
+
+        connection.execute(
+            f"""
+            INSERT INTO {EMAIL_OPEN_TABLE} (
+                lead_id,
+                email_event_id,
+                tracking_token,
+                opened_at,
+                remote_addr,
+                user_agent,
+                viewer_fingerprint
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(row["lead_id"]),
+                int(row["email_event_id"]),
+                token,
+                now_iso,
+                remote_addr_text,
+                user_agent_text,
+                fingerprint,
+            ),
+        )
+        connection.execute(
+            f"""
+            UPDATE {EMAIL_EVENT_TABLE}
+            SET open_count = COALESCE(open_count, 0) + 1,
+                first_open_at = COALESCE(first_open_at, ?),
+                last_open_at = ?
+            WHERE id = ?
+            """,
+            (now_iso, now_iso, int(row["email_event_id"])),
+        )
+        connection.execute(
+            f"""
+            UPDATE {TABLE_NAME}
+            SET open_count = COALESCE(open_count, 0) + 1,
+                first_open_at = COALESCE(first_open_at, ?),
+                last_open_at = ?
+            WHERE id = ?
+            """,
+            (now_iso, now_iso, int(row["lead_id"])),
+        )
+
+        event_snapshot = connection.execute(
+            f"""
+            SELECT open_count, first_open_at, last_open_at
+            FROM {EMAIL_EVENT_TABLE}
+            WHERE id = ?
+            """,
+            (int(row["email_event_id"]),),
+        ).fetchone()
+
+    return {
+        "lead_id": int(row["lead_id"]),
+        "email_event_id": int(row["email_event_id"]),
+        "open_count": int((event_snapshot["open_count"] if event_snapshot else 0) or 0),
+        "first_open_at": event_snapshot["first_open_at"] if event_snapshot else None,
+        "last_open_at": event_snapshot["last_open_at"] if event_snapshot else None,
+    }
+
+
+def mark_reply_received(
+    *,
+    lead_id: int | None = None,
+    email: str | None = None,
+    reply_type: str = "unknown",
+    reply_summary: str = "",
+    received_at: str | None = None,
+    reference_message_ids: list[str] | None = None,
+) -> dict | None:
+    if lead_id is None and not email:
+        return None
+
+    normalized_email = _clean_text((email or "").lower(), "", 254)
+    normalized_type = _clean_text(reply_type or "unknown", "unknown", 32).lower()
+    summary = _body_preview(reply_summary or "", limit=500)
+    now_iso = received_at or _now_iso()
+    references = [ref.strip() for ref in (reference_message_ids or []) if str(ref or "").strip()]
+
+    with get_connection() as connection:
+        if lead_id is not None:
+            lead_row = connection.execute(
+                f"""
+                SELECT id, email, thread_subject
+                FROM {TABLE_NAME}
+                WHERE id = ?
+                """,
+                (int(lead_id),),
+            ).fetchone()
+        else:
+            lead_row = connection.execute(
+                f"""
+                SELECT id, email, thread_subject
+                FROM {TABLE_NAME}
+                WHERE lower(email) = lower(?)
+                """,
+                (normalized_email,),
+            ).fetchone()
+
+        if not lead_row:
+            return None
+
+        resolved_lead_id = int(lead_row["id"])
+        opt_out_at = now_iso if normalized_type in {"unsubscribe", "not_interested", "opt_out"} else None
+
+        connection.execute(
+            f"""
+            UPDATE {TABLE_NAME}
+            SET last_status = 'replied',
+                last_error = '',
+                reply_received_at = COALESCE(reply_received_at, ?),
+                reply_type = ?,
+                reply_summary = ?,
+                opt_out_at = COALESCE(opt_out_at, ?),
+                next_followup_at = NULL,
+                sequence_status = 'stopped',
+                sequence_completed_at = COALESCE(sequence_completed_at, ?)
+            WHERE id = ?
+            """,
+            (now_iso, normalized_type, summary, opt_out_at, now_iso, resolved_lead_id),
+        )
+
+        if references:
+            placeholders = ",".join("?" for _ in references)
+            connection.execute(
+                f"""
+                UPDATE {EMAIL_EVENT_TABLE}
+                SET reply_type = ?,
+                    reply_summary = ?
+                WHERE lead_id = ?
+                  AND message_id IN ({placeholders})
+                """,
+                (normalized_type, summary, resolved_lead_id, *references),
+            )
+        else:
+            latest = connection.execute(
+                f"""
+                SELECT id
+                FROM {EMAIL_EVENT_TABLE}
+                WHERE lead_id = ?
+                  AND status = 'sent'
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (resolved_lead_id,),
+            ).fetchone()
+            if latest:
+                connection.execute(
+                    f"""
+                    UPDATE {EMAIL_EVENT_TABLE}
+                    SET reply_type = ?,
+                        reply_summary = ?
+                    WHERE id = ?
+                    """,
+                    (normalized_type, summary, int(latest["id"])),
+                )
+
+        connection.execute(
+            f"""
+            INSERT INTO {EMAIL_EVENT_TABLE} (
+                lead_id,
+                touch_number,
+                touch_type,
+                subject,
+                body_preview,
+                scheduled_for,
+                sent_at,
+                status,
+                message_id,
+                in_reply_to,
+                tracking_token,
+                copy_quality_score,
+                copy_quality_flags,
+                reply_type,
+                reply_summary,
+                error
+            )
+            VALUES (?, 0, 'reply', ?, ?, NULL, ?, 'reply_received', '', '', '', 100, '', ?, ?, '')
+            """,
+            (
+                resolved_lead_id,
+                (lead_row["thread_subject"] or "").strip() or f"Reply from {lead_row['email']}",
+                summary,
+                now_iso,
+                normalized_type,
+                summary,
+            ),
+        )
+
+        row = connection.execute(
+            f"""
+            SELECT {_lead_select_fields()}
+            FROM {TABLE_NAME}
+            WHERE id = ?
+            """,
+            (resolved_lead_id,),
+        ).fetchone()
+
+    return row_to_dict(row)
+
+
+def list_recent_activity(limit: int = 12) -> list[dict]:
+    max_items = max(1, min(50, int(limit or 12)))
+    activity = []
+
+    with get_connection() as connection:
+        event_rows = connection.execute(
+            f"""
+            SELECT
+                e.status,
+                e.touch_type,
+                e.subject,
+                e.body_preview,
+                COALESCE(e.sent_at, e.created_at) AS occurred_at,
+                l.name,
+                l.email,
+                l.company
+            FROM {EMAIL_EVENT_TABLE} e
+            JOIN {TABLE_NAME} l ON l.id = e.lead_id
+            ORDER BY COALESCE(e.sent_at, e.created_at) DESC
+            LIMIT ?
+            """,
+            (max_items,),
+        ).fetchall()
+        open_rows = connection.execute(
+            f"""
+            SELECT
+                'open' AS status,
+                'open' AS touch_type,
+                '' AS subject,
+                '' AS body_preview,
+                opened_at AS occurred_at,
+                l.name,
+                l.email,
+                l.company
+            FROM {EMAIL_OPEN_TABLE} o
+            JOIN {TABLE_NAME} l ON l.id = o.lead_id
+            ORDER BY opened_at DESC
+            LIMIT ?
+            """,
+            (max_items,),
+        ).fetchall()
+
+    for row in event_rows:
+        activity.append(
+            {
+                "type": row["status"],
+                "touch_type": row["touch_type"],
+                "occurred_at": row["occurred_at"],
+                "lead_name": row["name"] or row["email"],
+                "email": row["email"],
+                "company": row["company"] or "",
+                "summary": row["subject"] or row["body_preview"] or row["status"],
+            }
+        )
+    for row in open_rows:
+        activity.append(
+            {
+                "type": "open",
+                "touch_type": "open",
+                "occurred_at": row["occurred_at"],
+                "lead_name": row["name"] or row["email"],
+                "email": row["email"],
+                "company": row["company"] or "",
+                "summary": "Email opened",
+            }
+        )
+
+    activity.sort(key=lambda item: item.get("occurred_at") or "", reverse=True)
+    return activity[:max_items]
+
+
+def get_report_overview(days: int = 30) -> dict:
+    window_days = max(1, min(365, int(days or 30)))
+    cutoff_iso = (_now() - timedelta(days=window_days)).isoformat()
+
+    with get_connection() as connection:
+        totals = connection.execute(
+            f"""
+            SELECT
+                COUNT(*) AS total_leads,
+                SUM(CASE WHEN sent_at IS NULL THEN 1 ELSE 0 END) AS pending_leads,
+                SUM(CASE WHEN sent_at IS NOT NULL THEN 1 ELSE 0 END) AS sent_leads,
+                SUM(CASE WHEN COALESCE(open_count, 0) > 0 THEN 1 ELSE 0 END) AS opened_leads,
+                SUM(CASE WHEN reply_received_at IS NOT NULL THEN 1 ELSE 0 END) AS replied_leads,
+                SUM(CASE WHEN lower(reply_type) IN ('interested', 'positive') THEN 1 ELSE 0 END) AS positive_replies,
+                SUM(CASE WHEN opt_out_at IS NOT NULL OR lower(reply_type) IN ('unsubscribe', 'not_interested', 'opt_out') THEN 1 ELSE 0 END) AS opt_outs,
+                SUM(CASE WHEN last_status = 'failed' THEN 1 ELSE 0 END) AS failed_leads,
+                SUM(CASE WHEN last_status = 'skipped' THEN 1 ELSE 0 END) AS skipped_leads
+            FROM {TABLE_NAME}
+            """
+        ).fetchone()
+        recent_events = connection.execute(
+            f"""
+            SELECT
+                SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) AS sent_events,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_events,
+                SUM(CASE WHEN status = 'skipped' THEN 1 ELSE 0 END) AS skipped_events,
+                AVG(CASE WHEN status = 'sent' THEN copy_quality_score END) AS avg_copy_score
+            FROM {EMAIL_EVENT_TABLE}
+            WHERE COALESCE(sent_at, created_at) >= ?
+            """,
+            (cutoff_iso,),
+        ).fetchone()
+        recent_opens = connection.execute(
+            f"""
+            SELECT
+                COUNT(*) AS total_opens,
+                COUNT(DISTINCT CASE WHEN viewer_fingerprint != '' THEN viewer_fingerprint ELSE NULL END) AS unique_viewers,
+                COUNT(DISTINCT lead_id) AS opened_leads
+            FROM {EMAIL_OPEN_TABLE}
+            WHERE opened_at >= ?
+            """,
+            (cutoff_iso,),
+        ).fetchone()
+        recent_replies = connection.execute(
+            f"""
+            SELECT COUNT(*) AS count
+            FROM {TABLE_NAME}
+            WHERE reply_received_at IS NOT NULL
+              AND reply_received_at >= ?
+            """,
+            (cutoff_iso,),
+        ).fetchone()
+        flag_rows = connection.execute(
+            f"""
+            SELECT copy_quality_flags
+            FROM {EMAIL_EVENT_TABLE}
+            WHERE status = 'sent'
+              AND copy_quality_flags != ''
+              AND COALESCE(sent_at, created_at) >= ?
+            ORDER BY COALESCE(sent_at, created_at) DESC
+            LIMIT 100
+            """,
+            (cutoff_iso,),
+        ).fetchall()
+        top_rows = connection.execute(
+            f"""
+            SELECT
+                name,
+                email,
+                company,
+                open_count,
+                last_open_at,
+                reply_type,
+                reply_received_at
+            FROM {TABLE_NAME}
+            WHERE sent_at IS NOT NULL
+            ORDER BY
+                CASE WHEN reply_received_at IS NOT NULL THEN 1 ELSE 0 END DESC,
+                COALESCE(open_count, 0) DESC,
+                COALESCE(last_open_at, '') DESC,
+                id DESC
+            LIMIT 5
+            """
+        ).fetchall()
+
+        profile = _read_sender_profile(connection)
+        health = _sender_health(connection, profile)
+
+    totals_data = {
+        "total_leads": int((totals["total_leads"] if totals else 0) or 0),
+        "pending_leads": int((totals["pending_leads"] if totals else 0) or 0),
+        "sent_leads": int((totals["sent_leads"] if totals else 0) or 0),
+        "opened_leads": int((totals["opened_leads"] if totals else 0) or 0),
+        "replied_leads": int((totals["replied_leads"] if totals else 0) or 0),
+        "positive_replies": int((totals["positive_replies"] if totals else 0) or 0),
+        "opt_outs": int((totals["opt_outs"] if totals else 0) or 0),
+        "failed_leads": int((totals["failed_leads"] if totals else 0) or 0),
+        "skipped_leads": int((totals["skipped_leads"] if totals else 0) or 0),
+    }
+    recent_data = {
+        "sent_events": int((recent_events["sent_events"] if recent_events else 0) or 0),
+        "failed_events": int((recent_events["failed_events"] if recent_events else 0) or 0),
+        "skipped_events": int((recent_events["skipped_events"] if recent_events else 0) or 0),
+        "avg_copy_score": round(float((recent_events["avg_copy_score"] if recent_events else 100) or 100), 1),
+        "total_opens": int((recent_opens["total_opens"] if recent_opens else 0) or 0),
+        "unique_viewers": int((recent_opens["unique_viewers"] if recent_opens else 0) or 0),
+        "opened_leads": int((recent_opens["opened_leads"] if recent_opens else 0) or 0),
+        "recent_replies": int((recent_replies["count"] if recent_replies else 0) or 0),
+    }
+
+    flag_counts = {}
+    for row in flag_rows:
+        for flag in [item.strip() for item in str(row["copy_quality_flags"] or "").split(",") if item.strip()]:
+            flag_counts[flag] = flag_counts.get(flag, 0) + 1
+
+    top_engaged = [
+        {
+            "name": row["name"] or row["email"],
+            "email": row["email"],
+            "company": row["company"] or "",
+            "open_count": int(row["open_count"] or 0),
+            "last_open_at": row["last_open_at"] or None,
+            "reply_type": row["reply_type"] or "",
+            "reply_received_at": row["reply_received_at"] or None,
+        }
+        for row in top_rows
+    ]
+
+    return {
+        "window_days": window_days,
+        "totals": totals_data,
+        "recent": recent_data,
+        "rates": {
+            "open_rate": _rate(totals_data["opened_leads"], totals_data["sent_leads"]),
+            "reply_rate": _rate(totals_data["replied_leads"], totals_data["sent_leads"]),
+            "positive_reply_rate": _rate(totals_data["positive_replies"], totals_data["sent_leads"]),
+            "failure_rate": _rate(totals_data["failed_leads"], totals_data["sent_leads"]),
+        },
+        "copy_health": {
+            "avg_score": recent_data["avg_copy_score"],
+            "common_flags": [
+                {"flag": name, "count": count}
+                for name, count in sorted(flag_counts.items(), key=lambda item: (-item[1], item[0]))[:5]
+            ],
+        },
+        "sender_health": health,
+        "sender_profile": {
+            "sender_name": profile["sender_name"],
+            "agency_name": profile["agency_name"],
+            "website_url": profile["website_url"],
+            "tracking_base_url": profile["tracking_base_url"],
+            "warmup_status": profile["warmup_status"],
+            "daily_send_limit": profile["daily_send_limit"],
+            "daily_warmup_target": profile["daily_warmup_target"],
+            "deliverability_floor": profile["deliverability_floor"],
+            "snov_workspace_url": profile["snov_workspace_url"],
+            "last_reply_sync_at": profile.get("last_reply_sync_at"),
+        },
+        "top_engaged_leads": top_engaged,
+        "recent_activity": list_recent_activity(limit=10),
+    }

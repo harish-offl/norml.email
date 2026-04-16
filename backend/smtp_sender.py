@@ -1,3 +1,5 @@
+import html
+import re
 import smtplib
 import socket
 import ssl
@@ -23,44 +25,73 @@ def _get_smtp_config():
     return host, port
 
 
-def build_html_email(subject, plain_body, sender_name, agency_name, sender_email=""):
-    """Convert plain text email (with '- ' bullets) into proper HTML with <ul><li> tags."""
+def _apply_light_emphasis(text):
+    rendered = html.escape(text or "")
+    for phrase in [
+        "quick 15-minute call",
+        "15-minute call",
+        "2 or 3 ideas",
+        "2-3 ideas",
+        "specific ideas",
+        "reply here",
+    ]:
+        pattern = re.compile(re.escape(phrase), re.IGNORECASE)
+        rendered = pattern.sub(lambda m: f"<strong>{html.escape(m.group(0))}</strong>", rendered)
+    rendered = re.sub(
+        r"(https?://[^\s<]+)",
+        lambda m: f'<a href="{html.escape(m.group(1), quote=True)}" '
+        f'style="color:#1d4ed8;text-decoration:none;font-weight:600">{html.escape(m.group(1))}</a>',
+        rendered,
+        flags=re.IGNORECASE,
+    )
+    return rendered
+
+
+def build_html_email(subject, plain_body, sender_name, agency_name, sender_email="", tracking_pixel_url=""):
+    """Render a simple human-looking email with reply and tracking support."""
     sections = []
-    bullet_buffer = []
+    blocks = [block.strip() for block in re.split(r"\n\s*\n", plain_body.strip()) if block.strip()]
 
-    for line in plain_body.strip().split("\n"):
-        stripped = line.strip()
-        if stripped.startswith("- "):
-            bullet_buffer.append(stripped[2:])
-        else:
-            if bullet_buffer:
-                items = "".join(f"<li>{b}</li>" for b in bullet_buffer)
-                sections.append(
-                    f'<ul style="margin:0 0 16px 0;padding-left:20px;'
-                    f'font-size:15px;line-height:2;color:#374151">{items}</ul>'
-                )
-                bullet_buffer = []
-            if not stripped:
-                continue
-            if stripped.lower().startswith("best regards"):
-                sections.append(
-                    f'<p style="margin:0 0 4px 0;font-size:15px;color:#374151">Best regards,</p>'
-                    f'<p style="margin:0 0 20px 0;font-size:15px;font-weight:700;color:#222222">{sender_name}</p>'
-                )
-            elif stripped.lower().startswith("p.s."):
-                sections.append(
-                    f'<p style="margin:16px 0 0 0;font-size:13px;color:#6b7280;font-style:italic">{stripped}</p>'
-                )
-            else:
-                sections.append(
-                    f'<p style="margin:0 0 16px 0;font-size:15px;line-height:1.7;color:#374151">{stripped}</p>'
-                )
+    for block in blocks:
+        lines = [line.strip() for line in block.splitlines() if line.strip()]
+        if not lines:
+            continue
 
-    if bullet_buffer:
-        items = "".join(f"<li>{b}</li>" for b in bullet_buffer)
+        if len(lines) == 2 and lines[0].lower() in {"best,", "regards,", "thanks,"}:
+            sections.append(
+                f'<p style="margin:0 0 4px 0;font-size:15px;line-height:1.65;color:#111827">{_apply_light_emphasis(lines[0])}</p>'
+                f'<p style="margin:0 0 16px 0;font-size:15px;line-height:1.65;color:#111827;font-weight:600">{_apply_light_emphasis(lines[1])}</p>'
+            )
+            continue
+
+        if len(lines) == 1 and re.match(r"^https?://", lines[0], flags=re.IGNORECASE):
+            sections.append(
+                f'<p style="margin:0 0 16px 0;font-size:14px;line-height:1.65;color:#1d4ed8">{_apply_light_emphasis(lines[0])}</p>'
+            )
+            continue
+
+        content = "<br>".join(_apply_light_emphasis(line) for line in lines)
         sections.append(
-            f'<ul style="margin:0 0 16px 0;padding-left:20px;'
-            f'font-size:15px;line-height:2;color:#374151">{items}</ul>'
+            f'<p style="margin:0 0 16px 0;font-size:15px;line-height:1.7;color:#111827">{content}</p>'
+        )
+
+    pixel = ""
+    if tracking_pixel_url:
+        pixel = (
+            f'<img src="{html.escape(tracking_pixel_url, quote=True)}" alt="" width="1" height="1" '
+            f'style="display:block;border:0;width:1px;height:1px;opacity:0" />'
+        )
+
+    footer = ""
+    if sender_email:
+        agency_label = html.escape(agency_name or sender_name or "our team")
+        safe_sender_email = html.escape(sender_email, quote=True)
+        footer = (
+            '<p style="margin:24px 0 0 0;font-size:11px;color:#6b7280;line-height:1.6">'
+            f'You received this email from {agency_label} because your business matched our ideal customer profile.<br>'
+            f'<a href="mailto:{safe_sender_email}?subject=unsubscribe" style="color:#1d4ed8;text-decoration:none;font-weight:500;">Unsubscribe</a> | '
+            f'<a href="mailto:{safe_sender_email}?subject=do+not+contact" style="color:#1d4ed8;text-decoration:none;font-weight:500;">Do not contact</a>'
+            "</p>"
         )
 
     body_html = "\n        ".join(sections)
@@ -68,26 +99,12 @@ def build_html_email(subject, plain_body, sender_name, agency_name, sender_email
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#222222">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff">
-  <tr><td align="center" style="padding:40px 20px">
-    <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%">
-      <tr><td style="padding:0 0 20px 0;border-bottom:2px solid #ff6a00">
-        <span style="font-size:13px;font-weight:700;color:#ff6a00;letter-spacing:1px;text-transform:uppercase">{agency_name}</span>
-      </td></tr>
-      <tr><td style="padding:28px 0 0 0">
-        {body_html}
-      </td></tr>
-      <tr><td style="padding:24px 0 0 0;border-top:1px solid #e5e7eb">
-        <p style="margin:0;font-size:11px;color:#9ca3af;line-height:1.6">
-          You received this email from {agency_name} because your business matched our ideal customer profile.<br>
-          <a href="mailto:{sender_email}?subject=unsubscribe" style="color:#ff6a00;text-decoration:none;font-weight:500;">Unsubscribe</a> | 
-          <a href="mailto:{sender_email}?subject=do+not+contact" style="color:#ff6a00;text-decoration:none;font-weight:500;">Do not contact</a>
-        </p>
-      </td></tr>
-    </table>
-  </td></tr>
-</table>
+<body style="margin:0;padding:24px;background:#ffffff;font-family:Arial,Helvetica,sans-serif;color:#111827">
+  <div style="max-width:640px;margin:0 auto">
+    {body_html}
+    {footer}
+    {pixel}
+  </div>
 </body>
 </html>"""
 
@@ -198,6 +215,7 @@ class SMTPSender:
         agency_name="",
         reply_to_message_id="",
         references=None,
+        tracking_pixel_url="",
     ):
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
@@ -214,7 +232,14 @@ class SMTPSender:
             if references_value:
                 msg["References"] = references_value
 
-        html_body = build_html_email(subject, body, sender_name, agency_name, self.email_address)
+        html_body = build_html_email(
+            subject,
+            body,
+            sender_name,
+            agency_name,
+            sender_email=self.email_address,
+            tracking_pixel_url=tracking_pixel_url,
+        )
         msg.attach(MIMEText(body,      "plain"))
         msg.attach(MIMEText(html_body, "html"))
 

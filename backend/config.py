@@ -16,6 +16,9 @@ MAX_CONCURRENT_EMAILS  = max(1, int(os.getenv("MAX_CONCURRENT_EMAILS", "2")))
 SMTP_MAX_RETRIES       = max(0, int(os.getenv("SMTP_MAX_RETRIES", "1")))
 SMTP_RETRY_DELAY_SECONDS = float(os.getenv("SMTP_RETRY_DELAY_SECONDS", "1"))
 LEAD_FETCH_CHUNK_SIZE  = max(100, int(os.getenv("LEAD_FETCH_CHUNK_SIZE", "500")))
+IMAP_SERVER = os.getenv("IMAP_SERVER", "imap.gmail.com").strip()
+IMAP_PORT = int(os.getenv("IMAP_PORT", "993"))
+REPLY_SYNC_LOOKBACK_DAYS = max(1, int(os.getenv("REPLY_SYNC_LOOKBACK_DAYS", "21")))
 
 
 def _clean_env(name: str) -> str | None:
@@ -30,6 +33,31 @@ def get_email_credentials() -> tuple[str | None, str | None]:
     """Always re-read from env so runtime changes are picked up."""
     load_project_env(override=True)
     return _clean_env("EMAIL_ADDRESS"), _clean_env("EMAIL_PASSWORD")
+
+
+def get_imap_credentials() -> tuple[str | None, str | None]:
+    """Use explicit IMAP creds when provided, otherwise reuse SMTP mailbox creds."""
+    load_project_env(override=True)
+    username = _clean_env("IMAP_USERNAME")
+    password = _clean_env("IMAP_PASSWORD")
+    if username and password:
+        return username, password
+    return get_email_credentials()
+
+
+def get_sender_identity_defaults() -> dict[str, object]:
+    load_project_env(override=True)
+    email_address, _ = get_email_credentials()
+    sender_name = _clean_env("SENDER_NAME")
+    agency_name = _clean_env("AGENCY_NAME")
+    website_url = _clean_env("WEBSITE_URL") or ""
+    tracking_base_url = _clean_env("TRACKING_BASE_URL") or ""
+    return {
+        "sender_name": sender_name or ((email_address or "your").split("@")[0] or "Your Name"),
+        "agency_name": agency_name or "Your Company Name",
+        "website_url": website_url,
+        "tracking_base_url": tracking_base_url.rstrip("/"),
+    }
 
 
 def get_missing_smtp_settings() -> list[str]:

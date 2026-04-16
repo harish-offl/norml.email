@@ -23,6 +23,7 @@ MIN_BODY_WORDS = int(os.getenv("MIN_COLD_EMAIL_WORDS", "95"))
 MAX_BODY_WORDS = int(os.getenv("MAX_COLD_EMAIL_WORDS", "150"))
 DEFAULT_SENDER_NAME = os.getenv("SENDER_NAME", os.getenv("EMAIL_ADDRESS", "Your Name").split("@")[0] or "Your Name")
 DEFAULT_COMPANY_NAME = os.getenv("AGENCY_NAME", "Your Company Name")
+DEFAULT_WEBSITE_URL = os.getenv("WEBSITE_URL", "").strip()
 
 
 # ── Industry-specific bullet point library ───────────────────────────────────
@@ -563,13 +564,114 @@ def _log_result(result: str, error: str) -> None:
         pass
 
 
-def generate_cold_email(lead: dict) -> str:
-    """
-    Generate a cold email using the approved template.
-    Always uses the controlled fallback template to guarantee correct formatting.
-    AI generation is bypassed to prevent format inconsistencies.
-    """
-    result = _detailed_fallback(lead)
+def _profile_value(sender_profile: dict | None, key: str, fallback: str) -> str:
+    if sender_profile and sender_profile.get(key):
+        return str(sender_profile.get(key) or "").strip() or fallback
+    return fallback
+
+
+def _website_line(sender_profile: dict | None = None) -> str:
+    website = _profile_value(sender_profile, "website_url", DEFAULT_WEBSITE_URL)
+    if not website:
+        return ""
+    if "://" not in website:
+        website = f"https://{website}"
+    return website.rstrip("/")
+
+
+def _build_human_subject(company: str, solution: str) -> str:
+    options = [
+        f"Quick idea for {company}",
+        f"{company} and {solution}",
+        f"A thought on {solution} for {company}",
+        f"Quick question about {company}",
+    ]
+    return _ascii_safe(random.choice(options))
+
+
+def _build_human_body(lead: dict, sender_profile: dict | None = None) -> str:
+    name = _lead_value(lead, "name", "there")
+    company = _lead_value(lead, "company", "your team")
+    solution = _lead_value(lead, "niche", "growth work")
+    industry = _lead_value(lead, "industry", "your space")
+    sender_name = _profile_value(sender_profile, "sender_name", DEFAULT_SENDER_NAME)
+    website = _website_line(sender_profile)
+    outcomes = _get_bullets(industry, solution)
+
+    opener = random.choice(
+        [
+            f"Came across {company} and wanted to reach out because {solution} is usually where good teams start leaving revenue on the table.",
+            f"I was looking at {company} and thought it was worth sending a quick note because {solution} often becomes a bottleneck before teams notice it.",
+            f"Reaching out directly because {company} looks like the kind of team where a tighter {solution} setup could create quick wins.",
+        ]
+    )
+    context = random.choice(
+        [
+            f"We usually help {industry} teams tighten up {outcomes[0].lower()} and {outcomes[1].lower()} without turning the process into a heavy campaign.",
+            f"For teams in {industry}, the gains usually come from improving {outcomes[0].lower()} while making {outcomes[1].lower()} more repeatable.",
+            f"The work is normally pretty practical: clearer positioning, better outreach flow, and stronger follow-through around {outcomes[0].lower()}.",
+        ]
+    )
+    close = random.choice(
+        [
+            f"If it helps, I can send over 2 or 3 ideas specific to {company} or keep it to a quick 15-minute call.",
+            f"Happy to share a few concrete ideas for {company} if that is useful, or we can keep it to a quick 15-minute call.",
+            f"If this is on the radar, I can send a short breakdown for {company} or jump on a quick 15-minute call.",
+        ]
+    )
+
+    lines = [
+        f"Hi {name},",
+        "",
+        opener,
+        "",
+        context,
+        "",
+        close,
+        "",
+        "Best,",
+        sender_name,
+    ]
+    if website:
+        lines.extend(["", website])
+    return _ascii_safe("\n".join(lines))
+
+
+def assess_email_quality(subject: str, body: str) -> dict:
+    text = f"{subject}\n{body}"
+    lowered = text.lower()
+    flags = []
+
+    if len(re.findall(r"https?://", body, flags=re.IGNORECASE)) > 1:
+        flags.append("too_many_links")
+    if text.count("!") > 1:
+        flags.append("heavy_exclamation")
+    if re.search(r"\b[A-Z]{4,}\b", text):
+        flags.append("all_caps_word")
+    if re.search(r"\b(free|guaranteed|risk-free|act now|urgent|limited time|winner)\b", lowered):
+        flags.append("spam_trigger_phrase")
+    if len(subject.split()) > 8:
+        flags.append("long_subject")
+    if len(body.splitlines()) > 10:
+        flags.append("too_many_blocks")
+
+    score = 100 - (18 * len(flags))
+    if "http://" in lowered:
+        flags.append("non_https_link")
+        score -= 8
+
+    return {
+        "score": max(0, min(100, score)),
+        "flags": flags,
+    }
+
+
+def generate_cold_email(lead: dict, sender_profile: dict | None = None) -> str:
+    company = _lead_value(lead, "company", "your team")
+    solution = _lead_value(lead, "niche", "growth work")
+    subject = _build_human_subject(company, solution)
+    body = _build_human_body(lead, sender_profile)
+    result = _ascii_safe(f"Subject: {subject}\n\n{body}")
     _log_result(result, "")
     return result
 
@@ -586,12 +688,18 @@ def _reply_subject(subject: str, lead: dict) -> str:
     return f"Re: {base_subject}"
 
 
-def generate_followup_email(lead: dict, step_number: int, thread_subject: str = "") -> str:
+def generate_followup_email(
+    lead: dict,
+    step_number: int,
+    thread_subject: str = "",
+    sender_profile: dict | None = None,
+) -> str:
     name = _lead_value(lead, "name", "there")
     company = _lead_value(lead, "company", "your business")
     solution = _lead_value(lead, "niche", "digital growth")
     industry = _lead_value(lead, "industry", "your industry")
-    sender_name = DEFAULT_SENDER_NAME
+    sender_name = _profile_value(sender_profile, "sender_name", DEFAULT_SENDER_NAME)
+    website = _website_line(sender_profile)
     subject = _reply_subject(thread_subject, lead)
     bullets = _get_bullets(industry, solution)
 
@@ -603,14 +711,11 @@ def generate_followup_email(lead: dict, step_number: int, thread_subject: str = 
             f"\n"
             f"Wanted to quickly circle back on my earlier note about {solution} for {company}.\n"
             f"\n"
-            f"Two outcomes teams in {industry} often want from this are:\n"
-            f"\n"
-            f"- {bullets[0]}\n"
-            f"- {bullets[1]}\n"
+            f"A lot of teams in {industry} are mainly trying to improve {bullets[0].lower()} and {bullets[1].lower()} without adding more manual work.\n"
             f"\n"
             f"If helpful, I can send over a couple of specific ideas for {company} or keep it to a quick 15-minute call.\n"
             f"\n"
-            f"Best regards,\n"
+            f"Best,\n"
             f"{sender_name}"
         )
     elif step_number == 2:
@@ -625,7 +730,7 @@ def generate_followup_email(lead: dict, step_number: int, thread_subject: str = 
             f"\n"
             f"Would it make sense to share 2 or 3 practical ideas for {company}?\n"
             f"\n"
-            f"Best regards,\n"
+            f"Best,\n"
             f"{sender_name}"
         )
     else:
@@ -640,9 +745,12 @@ def generate_followup_email(lead: dict, step_number: int, thread_subject: str = 
             f"\n"
             f"If not, no worries and I will leave it here.\n"
             f"\n"
-            f"Best regards,\n"
+            f"Best,\n"
             f"{sender_name}"
         )
+
+    if website:
+        body = f"{body}\n\n{website}"
 
     result = _ascii_safe(body)
     _log_result(result, "")

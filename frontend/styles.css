@@ -659,6 +659,7 @@ tbody tr:hover { background: var(--surface2); }
   font-size: 11.5px; font-weight: 600; text-transform: capitalize;
 }
 .status-tag.sent    { background: var(--green-bg);  color: var(--green); }
+.status-tag.replied { background: var(--blue-bg);   color: var(--blue); }
 .status-tag.pending { background: var(--yellow-bg); color: var(--yellow); }
 .status-tag.failed  { background: var(--red-bg);    color: var(--red); }
 .status-tag.skipped { background: var(--surface2);  color: var(--text3); }
